@@ -8,6 +8,14 @@ const validNodeTypes = new Set([
   "listItem",
 ]);
 
+const allowedChildren: Record<string, string[]> = {
+  heading: [],
+  paragraph: [],
+  code: [],
+  list: ["listItem"],
+  listItem: ["paragraph"],
+};
+
 export const validateASTNode = (
   node: unknown,
   path = "root",
@@ -64,13 +72,35 @@ export const validateASTNode = (
     );
   }
 
-  // Validate children
+  // Validate children and structural relationships
   if (currentNode.children !== undefined) {
     if (!Array.isArray(currentNode.children)) {
       throw new Error(`Children must be an array at ${path}`);
     }
 
+    const allowedChildTypes =
+      allowedChildren[currentNode.type];
+
     currentNode.children.forEach((child, index) => {
+      if (!child || typeof child !== "object") {
+        throw new Error(
+          `Invalid child at ${path}.children[${index}]`
+        );
+      }
+
+      const childNode = child as Record<string, unknown>;
+
+      if (
+        typeof childNode.type !== "string" ||
+        !allowedChildTypes.includes(childNode.type)
+      ) {
+        throw new Error(
+          `Invalid child relationship: ${currentNode.type} cannot contain ${
+            String(childNode.type)
+          } at ${path}.children[${index}]`
+        );
+      }
+
       validateASTNode(
         child,
         `${path}.children[${index}]`,
