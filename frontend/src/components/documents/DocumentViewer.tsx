@@ -1,39 +1,47 @@
 import { useEffect, useState } from "react";
 
-import type { ASTNode } from "../../types/document";
+import type { DocumentData, ASTNode } from "../../types/document";
 
 import ASTRenderer from "../blocks/ASTRenderer";
 
 interface DocumentViewerProps {
-    title: string;
-    nodes: ASTNode[];
+    document: DocumentData;
+    onChange: (document: DocumentData) => void;
 }
 
 function DocumentViewer({
-    title,
-    nodes,
+    document,
+    onChange,
 }: DocumentViewerProps) {
     const [localNodes, setLocalNodes] =
-        useState<ASTNode[]>(nodes);
+        useState<ASTNode[]>(document.nodes);
 
     useEffect(() => {
-        setLocalNodes(nodes);
-    }, [nodes]);
+        setLocalNodes(document.nodes);
+    }, [document.nodes]);
 
     const updateNodeContent = (
         id: string,
         content: string
     ) => {
-        setLocalNodes((currentNodes) =>
-            currentNodes.map((node) =>
-                node.id === id
-                    ? {
-                          ...node,
-                          content,
-                      }
-                    : node
-            )
-        );
+        setLocalNodes((currentNodes) => {
+            const updatedNodes = currentNodes.map(
+                (node) =>
+                    node.id === id
+                        ? {
+                              ...node,
+                              content,
+                          }
+                        : node
+            );
+
+            onChange({
+                ...document,
+                nodes: updatedNodes,
+            });
+
+            return updatedNodes;
+        });
     };
 
     return (
@@ -45,7 +53,7 @@ function DocumentViewer({
                 borderRadius: "10px",
             }}
         >
-            <h2>{title}</h2>
+            <h2>{document.title}</h2>
 
             <ASTRenderer
                 nodes={localNodes}
