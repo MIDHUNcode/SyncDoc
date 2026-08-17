@@ -4,6 +4,8 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 import connectDB from "./config/database.js";
 import documentRoutes from "./routes/documentRoutes.js";
+import http from "http";
+import { initializeWebSocketServer } from "./services/collaboration/websocketServer";
 
 dotenv.config();
 
@@ -28,7 +30,11 @@ const PORT = process.env.PORT || 5000;
 const startServer = async (): Promise<void> => {
   await connectDB();
 
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+
+  initializeWebSocketServer(server);
+
+  server.listen(PORT, () => {
     console.log(`🚀 SyncDoc API running on port ${PORT}`);
   });
 };
