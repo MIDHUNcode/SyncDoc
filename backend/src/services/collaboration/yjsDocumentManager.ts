@@ -1,10 +1,9 @@
 import * as Y from "yjs";
+import { ASTNode } from "../../types/ast.js";
+import { astNodeToYMap } from "./astToYjs.js";
 
 const documents = new Map<string, Y.Doc>();
 
-/**
- * Get an existing Yjs document or create a new one.
- */
 export const getYDoc = (documentId: string): Y.Doc => {
     let yDoc = documents.get(documentId);
 
@@ -18,16 +17,29 @@ export const getYDoc = (documentId: string): Y.Doc => {
     return yDoc;
 };
 
-/**
- * Check whether a Yjs document is currently active.
- */
+export const initializeYDocFromAST = (
+    yDoc: Y.Doc,
+    nodes: ASTNode[]
+): void => {
+    const yNodes = yDoc.getArray<Y.Map<unknown>>("nodes");
+
+    if (yNodes.length > 0) {
+        return;
+    }
+
+    for (const node of nodes) {
+        yNodes.push([astNodeToYMap(node)]);
+    }
+
+    console.log(
+        `🌳 Yjs document initialized with ${nodes.length} root nodes`
+    );
+};
+
 export const hasYDoc = (documentId: string): boolean => {
     return documents.has(documentId);
 };
 
-/**
- * Remove a Yjs document from memory.
- */
 export const deleteYDoc = (documentId: string): void => {
     const yDoc = documents.get(documentId);
 
@@ -41,9 +53,6 @@ export const deleteYDoc = (documentId: string): void => {
     console.log(`🗑️ Yjs document removed: ${documentId}`);
 };
 
-/**
- * Get the number of active collaborative documents.
- */
 export const getActiveDocumentCount = (): number => {
     return documents.size;
 };
