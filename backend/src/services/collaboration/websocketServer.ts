@@ -11,8 +11,7 @@ export const initializeWebSocketServer = (server: Server) => {
         path: "/collab",
     });
 
-    wss.on("connection", (socket: WebSocket, request) => {
-        console.log("🔌 WebSocket client connected");
+    wss.on("connection", async (socket: WebSocket, request) => {
 
         const url = new URL(
             request.url || "",
@@ -28,9 +27,7 @@ export const initializeWebSocketServer = (server: Server) => {
             return;
         }
 
-        const yDoc = getYDoc(documentId);
-
-        console.log(`📄 Connected to Yjs document: ${documentId}`);
+        const yDoc = await getYDoc(documentId);
 
         // Get or create clients for this document
         let clients = documentClients.get(documentId);
@@ -91,9 +88,6 @@ export const initializeWebSocketServer = (server: Server) => {
 
                 Y.applyUpdate(yDoc, update, socket);
 
-                console.log(
-                    `🔄 Yjs update applied: ${documentId}`
-                );
             } catch (error) {
                 console.error(
                     `❌ Failed to apply Yjs update for ${documentId}:`,
@@ -110,10 +104,6 @@ export const initializeWebSocketServer = (server: Server) => {
 
             yDoc.off("update", updateHandler);
 
-            console.log(
-                `🔌 WebSocket disconnected from document: ${documentId}`
-            );
-
             if (clients && clients.size === 0) {
                 documentClients.delete(documentId);
             }
@@ -129,8 +119,6 @@ export const initializeWebSocketServer = (server: Server) => {
             );
         });
     });
-
-    console.log("🚀 WebSocket server initialized");
 
     return wss;
 };

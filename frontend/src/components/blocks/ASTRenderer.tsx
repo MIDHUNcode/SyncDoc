@@ -1,4 +1,5 @@
 import type { ASTNode } from "../../types/document";
+import * as Y from "yjs";
 
 import HeadingBlock from "./HeadingBlock";
 import ParagraphBlock from "./ParagraphBlock";
@@ -7,12 +8,22 @@ import ListBlock from "./ListBlock";
 
 interface ASTRendererProps {
     nodes: ASTNode[];
-    onChange?: (id: string, content: string) => void;
+    onChange?: (
+        id: string,
+        content: string,
+    ) => void;
+
+    yDoc: Y.Doc | null;
+    userId: string;
+    userName: string;
 }
 
 function ASTRenderer({
     nodes,
     onChange,
+    yDoc,
+    userId,
+    userName,
 }: ASTRendererProps) {
     return (
         <div>
@@ -24,6 +35,9 @@ function ASTRenderer({
                                 key={node.id}
                                 node={node}
                                 onChange={onChange}
+                                yDoc={yDoc}
+                                userId={userId}
+                                userName={userName}
                             />
                         );
 
@@ -33,6 +47,9 @@ function ASTRenderer({
                                 key={node.id}
                                 node={node}
                                 onChange={onChange}
+                                yDoc={yDoc}
+                                userId={userId}
+                                userName={userName}
                             />
                         );
 
@@ -42,6 +59,9 @@ function ASTRenderer({
                                 key={node.id}
                                 node={node}
                                 onChange={onChange}
+                                yDoc={yDoc}
+                                userId={userId}
+                                userName={userName}
                             />
                         );
 
@@ -56,7 +76,8 @@ function ASTRenderer({
                     default:
                         return (
                             <div key={node.id}>
-                                Unsupported node type: {node.type}
+                                Unsupported node type:{" "}
+                                {node.type}
                             </div>
                         );
                 }

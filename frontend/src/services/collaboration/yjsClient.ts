@@ -81,6 +81,11 @@ export function createYjsClient(
         update: Uint8Array,
         origin: unknown,
     ) => {
+        console.log("📤 Yjs update generated:", {
+            length: update.length,
+            origin,
+        });
+
         if (
             destroyed ||
             origin === "remote"
@@ -89,20 +94,16 @@ export function createYjsClient(
         }
 
         if (
-            socket.readyState ===
-            WebSocket.OPEN
+            socket.readyState === WebSocket.OPEN
         ) {
             const buffer =
-                update.buffer instanceof
-                ArrayBuffer
+                update.buffer instanceof ArrayBuffer
                     ? update.buffer.slice(
-                          update.byteOffset,
-                          update.byteOffset +
-                              update.byteLength,
-                      )
-                    : new Uint8Array(
-                          update,
-                      ).buffer;
+                        update.byteOffset,
+                        update.byteOffset +
+                        update.byteLength,
+                    )
+                    : new Uint8Array(update).buffer;
 
             socket.send(buffer);
         }
