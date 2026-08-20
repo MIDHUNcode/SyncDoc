@@ -6,9 +6,12 @@ import {
     type YjsClient,
 } from "../services/collaboration/yjsClient";
 
+import { yArrayToAST } from "../services/collaboration/yjsToAst";
+
 import {
-    yArrayToAST,
-} from "../services/collaboration/yjsToAst";
+    getPresence,
+    type PresenceUser,
+} from "../services/collaboration/presence";
 
 import type { ASTNode } from "../types/document";
 
@@ -16,18 +19,14 @@ interface UseYjsDocumentResult {
     doc: Y.Doc | null;
     nodes: Y.Array<Y.Map<unknown>> | null;
     astNodes: ASTNode[];
+    presenceUsers: PresenceUser[];
     connected: boolean;
 }
 
-interface BlockLock {
-    userId: string;
-    userName: string;
-    timestamp: number;
-}
+const PRESENCE_TIMEOUT = 2000;
 
 export function useYjsDocument(
     documentId: string | null,
-    userId: string,
 ): UseYjsDocumentResult {
     const [client, setClient] =
         useState<YjsClient | null>(null);
@@ -38,11 +37,15 @@ export function useYjsDocument(
     const [astNodes, setAstNodes] =
         useState<ASTNode[]>([]);
 
+    const [presenceUsers, setPresenceUsers] =
+        useState<PresenceUser[]>([]);
+
     useEffect(() => {
         if (!documentId) {
             setClient(null);
             setConnected(false);
             setAstNodes([]);
+            setPresenceUsers([]);
 
             return;
         }
@@ -53,8 +56,11 @@ export function useYjsDocument(
         const socket =
             yjsClient.socket;
 
+        const presence =
+            getPresence(yjsClient.doc);
+
         /*
-         * Convert Yjs AST → React AST.
+         * Update AST state from Yjs.
          */
         const updateReactState = () => {
             const nodes =
@@ -66,24 +72,37 @@ export function useYjsDocument(
         };
 
         /*
-         * WebSocket connected.
+         * Update presence users.
+         *
+         * Users older than PRESENCE_TIMEOUT
+         * are considered offline.
          */
+        const updatePresenceState = () => {
+            const now = Date.now();
+
+            const users = Array.from(
+                presence.values(),
+            ).filter((user) => {
+                return (
+                    now - user.lastSeen <
+                    PRESENCE_TIMEOUT
+                );
+            });
+
+            setPresenceUsers(users);
+        };
+
         const handleOpen = () => {
             setConnected(true);
 
             updateReactState();
+            updatePresenceState();
         };
 
-        /*
-         * WebSocket disconnected.
-         */
         const handleClose = () => {
             setConnected(false);
         };
 
-        /*
-         * WebSocket error.
-         */
         const handleError = (
             error: Event,
         ) => {
@@ -94,11 +113,31 @@ export function useYjsDocument(
         };
 
         /*
-         * Listen only to AST changes.
+         * Listen for AST changes.
          */
         yjsClient.nodes.observeDeep(
             updateReactState,
         );
+
+        /*
+         * Listen for presence changes.
+         */
+        presence.observe(
+            updatePresenceState,
+        );
+
+        /*
+         * IMPORTANT:
+         *
+         * Presence can become stale even when
+         * no Yjs update is received.
+         *
+         * Therefore check it every second.
+         */
+        const presenceTimer =
+            window.setInterval(() => {
+                updatePresenceState();
+            }, 1000);
 
         socket.addEventListener(
             "open",
@@ -117,59 +156,19 @@ export function useYjsDocument(
 
         setClient(yjsClient);
 
-        /*
-         * Cleanup when:
-         *
-         * - document changes
-         * - DocumentViewer unmounts
-         * - component is destroyed
-         */
         return () => {
-            /*
-             * Remove only locks owned
-             * by this browser/user.
-             */
-            const locks =
-                yjsClient.doc.getMap<BlockLock>(
-                    "blockLocks",
-                );
-
-            const ownedLocks: string[] = [];
-
-            locks.forEach(
-                (lock, nodeId) => {
-                    if (
-                        lock.userId ===
-                        userId
-                    ) {
-                        ownedLocks.push(
-                            nodeId,
-                        );
-                    }
-                },
-            );
-
-            /*
-             * Delete the user's locks.
-             */
-            yjsClient.doc.transact(() => {
-                for (
-                    const nodeId of ownedLocks
-                ) {
-                    locks.delete(nodeId);
-                }
-            });
-
-            /*
-             * Stop AST observation.
-             */
             yjsClient.nodes.unobserveDeep(
                 updateReactState,
             );
 
-            /*
-             * Remove WebSocket listeners.
-             */
+            presence.unobserve(
+                updatePresenceState,
+            );
+
+            window.clearInterval(
+                presenceTimer,
+            );
+
             socket.removeEventListener(
                 "open",
                 handleOpen,
@@ -185,21 +184,20 @@ export function useYjsDocument(
                 handleError,
             );
 
-            /*
-             * Destroy Yjs client.
-             */
             yjsClient.destroy();
 
             setClient(null);
             setConnected(false);
             setAstNodes([]);
+            setPresenceUsers([]);
         };
-    }, [documentId, userId]);
+    }, [documentId]);
 
     return {
         doc: client?.doc ?? null,
         nodes: client?.nodes ?? null,
         astNodes,
+        presenceUsers,
         connected,
     };
 }

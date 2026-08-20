@@ -9,6 +9,12 @@ import type {
 import ASTRenderer from "../blocks/ASTRenderer";
 import { useYjsDocument } from "../../hooks/useYjsDocument";
 
+import {
+    addPresenceUser,
+    removePresenceUser,
+    updatePresenceUser,
+} from "../../services/collaboration/presence";
+
 interface DocumentViewerProps {
     document: DocumentData;
     onChange: (document: DocumentData) => void;
@@ -20,6 +26,7 @@ function DocumentViewer({
 }: DocumentViewerProps) {
     /*
      * Keep the same user ID for this browser session.
+     * Different browser sessions get different IDs.
      */
     const [userId] = useState(() => {
         const existing =
@@ -47,20 +54,68 @@ function DocumentViewer({
         doc: yDoc,
         nodes: yNodes,
         astNodes,
+        presenceUsers,
         connected: yjsConnected,
-    } = useYjsDocument(
-        document._id,
-        userId,
-    );
+    } = useYjsDocument(document._id);
 
     const [localNodes, setLocalNodes] =
         useState<ASTNode[]>(document.nodes);
 
     /*
-     * Reset local nodes when the selected document changes.
+     * Register this user in Yjs presence.
      */
     useEffect(() => {
-        setLocalNodes(document.nodes);
+        if (!yDoc || !yjsConnected) {
+            return;
+        }
+
+        addPresenceUser(
+            yDoc,
+            userId,
+            userName,
+        );
+
+        /*
+         * Send heartbeat every 5 seconds.
+         */
+        const heartbeat =
+            window.setInterval(() => {
+                updatePresenceUser(
+                    yDoc,
+                    userId,
+                    userName,
+                );
+            }, 1000);
+
+        /*
+         * Remove user when leaving
+         * the current document.
+         */
+        return () => {
+            window.clearInterval(
+                heartbeat,
+            );
+
+            removePresenceUser(
+                yDoc,
+                userId,
+            );
+        };
+    }, [
+        yDoc,
+        yjsConnected,
+        userId,
+        userName,
+    ]);
+
+    /*
+     * Reset local nodes when the
+     * selected document changes.
+     */
+    useEffect(() => {
+        setLocalNodes(
+            document.nodes,
+        );
     }, [document._id]);
 
     /*
@@ -72,8 +127,14 @@ function DocumentViewer({
         }
 
         setLocalNodes(astNodes);
-    }, [astNodes, yjsConnected]);
+    }, [
+        astNodes,
+        yjsConnected,
+    ]);
 
+    /*
+     * Update a specific AST node.
+     */
     const updateNodeContent = (
         id: string,
         content: string,
@@ -97,9 +158,10 @@ function DocumentViewer({
                     if (node.children) {
                         return {
                             ...node,
-                            children: updateNodes(
-                                node.children,
-                            ),
+                            children:
+                                updateNodes(
+                                    node.children,
+                                ),
                         };
                     }
 
@@ -107,11 +169,13 @@ function DocumentViewer({
                 });
             };
 
-            return updateNodes(currentNodes);
+            return updateNodes(
+                currentNodes,
+            );
         });
 
         /*
-         * Update Yjs.
+         * Update Yjs for collaboration.
          */
         if (yDoc && yNodes) {
             yDoc.transact(() => {
@@ -128,8 +192,13 @@ function DocumentViewer({
                         const yNode =
                             nodes.get(i);
 
+                        /*
+                         * Found the target node.
+                         */
                         if (
-                            yNode.get("id") === id
+                            yNode.get(
+                                "id",
+                            ) === id
                         ) {
                             yNode.set(
                                 "content",
@@ -139,6 +208,10 @@ function DocumentViewer({
                             return true;
                         }
 
+                        /*
+                         * Search recursively
+                         * through children.
+                         */
                         const children =
                             yNode.get(
                                 "children",
@@ -165,19 +238,22 @@ function DocumentViewer({
 
                 updateNode(yNodes);
             });
-        } else {
-            /*
-             * REST fallback.
-             */
-            setLocalNodes((currentNodes) => {
-                onChange({
-                    ...document,
-                    nodes: currentNodes,
-                });
 
-                return currentNodes;
-            });
+            return;
         }
+
+        /*
+         * REST fallback when Yjs
+         * is not available.
+         */
+        setLocalNodes((currentNodes) => {
+            onChange({
+                ...document,
+                nodes: currentNodes,
+            });
+
+            return currentNodes;
+        });
     };
 
     return (
@@ -189,27 +265,126 @@ function DocumentViewer({
                 borderRadius: "10px",
             }}
         >
+            {/* Document header */}
             <div
                 style={{
                     display: "flex",
                     justifyContent:
                         "space-between",
                     alignItems: "center",
+                    marginBottom: "20px",
                 }}
             >
-                <h2>{document.title}</h2>
+                <h2
+                    style={{
+                        margin: 0,
+                    }}
+                >
+                    {document.title}
+                </h2>
 
-                <span>
-                    Yjs:{" "}
-                    {yjsConnected
-                        ? "Connected"
-                        : "Disconnected"}
-                </span>
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        fontSize: "14px",
+                    }}
+                >
+                    <span>
+                        Yjs:{" "}
+                        {yjsConnected
+                            ? "🟢 Connected"
+                            : "🔴 Disconnected"}
+                    </span>
+
+                    <span>
+                        👥{" "}
+                        {presenceUsers.length}{" "}
+                        online
+                    </span>
+                </div>
             </div>
 
+            {/* Presence UI */}
+            {presenceUsers.length > 0 && (
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                        marginBottom: "20px",
+                        padding: "10px",
+                        borderRadius: "8px",
+                        background:
+                            "#19191d",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "13px",
+                            marginRight: "4px",
+                        }}
+                    >
+                        Online:
+                    </span>
+
+                    {presenceUsers.map(
+                        (user) => (
+                            <div
+                                key={
+                                    user.userId
+                                }
+                                style={{
+                                    display:
+                                        "flex",
+                                    alignItems:
+                                        "center",
+                                    gap: "6px",
+                                    padding:
+                                        "6px 10px",
+                                    borderRadius:
+                                        "20px",
+                                    background:
+                                        "#25252b",
+                                    fontSize:
+                                        "13px",
+                                }}
+                            >
+                                <span>
+                                    🟢
+                                </span>
+
+                                <span>
+                                    {
+                                        user.userName
+                                    }
+                                </span>
+
+                                {user.userId ===
+                                    userId && (
+                                    <span
+                                        style={{
+                                            opacity:
+                                                0.6,
+                                        }}
+                                    >
+                                        (You)
+                                    </span>
+                                )}
+                            </div>
+                        ),
+                    )}
+                </div>
+            )}
+
+            {/* AST document */}
             <ASTRenderer
                 nodes={localNodes}
-                onChange={updateNodeContent}
+                onChange={
+                    updateNodeContent
+                }
                 yDoc={yDoc}
                 userId={userId}
                 userName={userName}
