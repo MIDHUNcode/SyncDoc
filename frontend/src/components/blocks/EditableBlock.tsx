@@ -5,6 +5,8 @@ import * as Y from "yjs";
 import {
     acquireBlockLock,
     releaseBlockLock,
+    refreshBlockLock,
+    cleanupExpiredLocks,
     getBlockLocks,
     type BlockLock,
 } from "../../services/collaboration/blockLock";
@@ -34,18 +36,46 @@ function EditableBlock({
     const [lockedBy, setLockedBy] =
         useState<BlockLock | null>(null);
 
+    const [isEditing, setIsEditing] =
+        useState(false);
+
+    /*
+     * Observe block lock changes.
+     */
     useEffect(() => {
         if (!yDoc) {
             setLockedBy(null);
             return;
         }
 
-        const locks = getBlockLocks(yDoc);
+        const locks =
+            getBlockLocks(yDoc);
 
         const updateLock = () => {
-            const lock = locks.get(nodeId);
+            const lock =
+                locks.get(nodeId);
 
-            // Only show locks belonging to OTHER users
+            /*
+             * Expired locks should not
+             * be displayed as active.
+             */
+            if (
+                lock &&
+                Date.now() >=
+                    lock.expiresAt
+            ) {
+                cleanupExpiredLocks(
+                    yDoc,
+                );
+
+                setLockedBy(null);
+                return;
+            }
+
+            /*
+             * Only show locks belonging
+             * to other users.
+             */
             if (
                 lock &&
                 lock.userId !== userId
@@ -60,29 +90,120 @@ function EditableBlock({
 
         locks.observe(updateLock);
 
-        return () => {
-            locks.unobserve(updateLock);
-        };
-    }, [yDoc, nodeId, userId]);
+        /*
+         * Check expiration periodically.
+         *
+         * This is important because an
+         * expired lock may not create a
+         * Yjs update by itself.
+         */
+        const expirationTimer =
+            window.setInterval(() => {
+                updateLock();
+            }, 1000);
 
+        return () => {
+            locks.unobserve(
+                updateLock,
+            );
+
+            window.clearInterval(
+                expirationTimer,
+            );
+        };
+    }, [
+        yDoc,
+        nodeId,
+        userId,
+    ]);
+
+    /*
+     * Acquire the lock when the
+     * textarea receives focus.
+     */
     const handleFocus = () => {
         if (!yDoc) {
             return;
         }
 
-        // Someone else owns this block
+        /*
+         * Another user owns this block.
+         */
         if (lockedBy) {
             return;
         }
 
-        acquireBlockLock(
-            yDoc,
-            nodeId,
-            userId,
-            userName,
-        );
+        const acquired =
+            acquireBlockLock(
+                yDoc,
+                nodeId,
+                userId,
+                userName,
+            );
+
+        /*
+         * Only enter editing mode
+         * if the lock was successfully
+         * acquired.
+         */
+        if (acquired) {
+            setIsEditing(true);
+        }
     };
 
+    /*
+     * Refresh the lock while the
+     * current user is editing.
+     */
+    useEffect(() => {
+        if (
+            !yDoc ||
+            !isEditing
+        ) {
+            return;
+        }
+
+        /*
+         * Refresh every 3 seconds.
+         *
+         * Lock duration is 10 seconds,
+         * so there is enough margin if
+         * one refresh is delayed.
+         */
+        const refreshTimer =
+            window.setInterval(() => {
+                const refreshed =
+                    refreshBlockLock(
+                        yDoc,
+                        nodeId,
+                        userId,
+                    );
+
+                /*
+                 * The lock expired or
+                 * was no longer owned.
+                 */
+                if (!refreshed) {
+                    setIsEditing(false);
+                }
+            }, 3000);
+
+        return () => {
+            window.clearInterval(
+                refreshTimer,
+            );
+        };
+    }, [
+        yDoc,
+        nodeId,
+        userId,
+        isEditing,
+    ]);
+
+    /*
+     * Release the lock when the
+     * user leaves the textarea.
+     */
     const handleBlur = () => {
         if (!yDoc) {
             return;
@@ -93,7 +214,32 @@ function EditableBlock({
             nodeId,
             userId,
         );
+
+        setIsEditing(false);
     };
+
+    /*
+     * Release the lock if the block
+     * is removed/unmounted while
+     * this user owns it.
+     */
+    useEffect(() => {
+        return () => {
+            if (!yDoc) {
+                return;
+            }
+
+            releaseBlockLock(
+                yDoc,
+                nodeId,
+                userId,
+            );
+        };
+    }, [
+        yDoc,
+        nodeId,
+        userId,
+    ]);
 
     const isLockedByOtherUser =
         lockedBy !== null;
@@ -121,11 +267,16 @@ function EditableBlock({
                 id={`block-${nodeId}`}
                 name={`block-${nodeId}`}
                 value={value}
-                readOnly={isLockedByOtherUser}
+                readOnly={
+                    isLockedByOtherUser
+                }
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 onChange={(event) => {
-                    if (!isLockedByOtherUser) {
+                    if (
+                        !isLockedByOtherUser &&
+                        isEditing
+                    ) {
                         onChange(
                             event.target.value,
                         );
@@ -135,13 +286,16 @@ function EditableBlock({
                 style={{
                     width: "100%",
                     padding: "10px",
-                    border: isLockedByOtherUser
-                        ? "1px solid #777"
-                        : "1px solid #666",
+                    border:
+                        isLockedByOtherUser
+                            ? "1px solid #777"
+                            : "1px solid #666",
                     borderRadius: "6px",
                     resize: "vertical",
-                    boxSizing: "border-box",
-                    fontFamily: "inherit",
+                    boxSizing:
+                        "border-box",
+                    fontFamily:
+                        "inherit",
                     fontSize: "16px",
                     background:
                         isLockedByOtherUser

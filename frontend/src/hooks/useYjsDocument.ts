@@ -6,14 +6,23 @@ import {
     type YjsClient,
 } from "../services/collaboration/yjsClient";
 
-import { yArrayToAST } from "../services/collaboration/yjsToAst";
-
 import {
-    getPresence,
-    type PresenceUser,
-} from "../services/collaboration/presence";
+    yArrayToAST,
+} from "../services/collaboration/yjsToAst";
 
 import type { ASTNode } from "../types/document";
+
+import {
+    addPresenceUser,
+    removePresenceUser,
+    updatePresenceUser,
+} from "../services/collaboration/presence";
+
+interface PresenceUser {
+    userId: string;
+    userName: string;
+    lastSeen: number;
+}
 
 interface UseYjsDocumentResult {
     doc: Y.Doc | null;
@@ -23,10 +32,10 @@ interface UseYjsDocumentResult {
     connected: boolean;
 }
 
-const PRESENCE_TIMEOUT = 2000;
-
 export function useYjsDocument(
     documentId: string | null,
+    userId: string,
+    userName: string,
 ): UseYjsDocumentResult {
     const [client, setClient] =
         useState<YjsClient | null>(null);
@@ -51,16 +60,21 @@ export function useYjsDocument(
         }
 
         const yjsClient =
-            createYjsClient(documentId);
+            createYjsClient(documentId, userId);
 
         const socket =
             yjsClient.socket;
 
+        /*
+         * Presence map belongs to THIS document.
+         */
         const presence =
-            getPresence(yjsClient.doc);
+            yjsClient.doc.getMap<PresenceUser>(
+                "presence",
+            );
 
         /*
-         * Update AST state from Yjs.
+         * Update AST state.
          */
         const updateReactState = () => {
             const nodes =
@@ -72,37 +86,54 @@ export function useYjsDocument(
         };
 
         /*
-         * Update presence users.
-         *
-         * Users older than PRESENCE_TIMEOUT
-         * are considered offline.
+         * Update presence state.
          */
         const updatePresenceState = () => {
-            const now = Date.now();
+            const users: PresenceUser[] = [];
 
-            const users = Array.from(
-                presence.values(),
-            ).filter((user) => {
-                return (
-                    now - user.lastSeen <
-                    PRESENCE_TIMEOUT
-                );
-            });
+            presence.forEach(
+                (user) => {
+                    if (!user) {
+                        return;
+                    }
+
+                    users.push(user);
+                },
+            );
 
             setPresenceUsers(users);
         };
 
+        /*
+         * WebSocket opened.
+         */
         const handleOpen = () => {
             setConnected(true);
 
             updateReactState();
             updatePresenceState();
+
+            /*
+             * Register this browser in
+             * the CURRENT document.
+             */
+            addPresenceUser(
+                yjsClient.doc,
+                userId,
+                userName,
+            );
         };
 
+        /*
+         * WebSocket closed.
+         */
         const handleClose = () => {
             setConnected(false);
         };
 
+        /*
+         * WebSocket error.
+         */
         const handleError = (
             error: Event,
         ) => {
@@ -113,30 +144,34 @@ export function useYjsDocument(
         };
 
         /*
-         * Listen for AST changes.
+         * Observe AST changes.
          */
         yjsClient.nodes.observeDeep(
             updateReactState,
         );
 
         /*
-         * Listen for presence changes.
+         * Observe presence changes.
          */
         presence.observe(
             updatePresenceState,
         );
 
         /*
-         * IMPORTANT:
-         *
-         * Presence can become stale even when
-         * no Yjs update is received.
-         *
-         * Therefore check it every second.
+         * Heartbeat.
          */
-        const presenceTimer =
+        const heartbeat =
             window.setInterval(() => {
-                updatePresenceState();
+                if (
+                    yjsClient.socket.readyState ===
+                    WebSocket.OPEN
+                ) {
+                    updatePresenceUser(
+                        yjsClient.doc,
+                        userId,
+                        userName,
+                    );
+                }
             }, 1000);
 
         socket.addEventListener(
@@ -154,19 +189,53 @@ export function useYjsDocument(
             handleError,
         );
 
+        /*
+         * If socket is already open.
+         */
+        if (
+            socket.readyState ===
+            WebSocket.OPEN
+        ) {
+            handleOpen();
+        }
+
         setClient(yjsClient);
 
+        /*
+         * IMPORTANT:
+         *
+         * Presence cleanup happens BEFORE
+         * yjsClient.destroy().
+         */
         return () => {
+            window.clearInterval(
+                heartbeat,
+            );
+
+            /*
+             * Remove this user from THIS
+             * document while the socket is
+             * still alive.
+             */
+            if (
+                yjsClient.socket.readyState ===
+                WebSocket.OPEN
+            ) {
+                removePresenceUser(
+                    yjsClient.doc,
+                    userId,
+                );
+            }
+
+            /*
+             * Remove listeners.
+             */
             yjsClient.nodes.unobserveDeep(
                 updateReactState,
             );
 
             presence.unobserve(
                 updatePresenceState,
-            );
-
-            window.clearInterval(
-                presenceTimer,
             );
 
             socket.removeEventListener(
@@ -184,6 +253,9 @@ export function useYjsDocument(
                 handleError,
             );
 
+            /*
+             * NOW destroy Yjs.
+             */
             yjsClient.destroy();
 
             setClient(null);
@@ -191,7 +263,11 @@ export function useYjsDocument(
             setAstNodes([]);
             setPresenceUsers([]);
         };
-    }, [documentId]);
+    }, [
+        documentId,
+        userId,
+        userName,
+    ]);
 
     return {
         doc: client?.doc ?? null,

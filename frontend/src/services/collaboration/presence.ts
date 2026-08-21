@@ -3,13 +3,15 @@ import * as Y from "yjs";
 export interface PresenceUser {
     userId: string;
     userName: string;
-    lastSeen: number;
+    timestamp: number;
 }
 
-export function getPresence(
+function getPresence(
     yDoc: Y.Doc,
 ): Y.Map<PresenceUser> {
-    return yDoc.getMap<PresenceUser>("presence");
+    return yDoc.getMap<PresenceUser>(
+        "presence",
+    );
 }
 
 export function addPresenceUser(
@@ -17,12 +19,13 @@ export function addPresenceUser(
     userId: string,
     userName: string,
 ): void {
-    const presence = getPresence(yDoc);
+    const presence =
+        getPresence(yDoc);
 
     presence.set(userId, {
         userId,
         userName,
-        lastSeen: Date.now(),
+        timestamp: Date.now(),
     });
 }
 
@@ -31,11 +34,13 @@ export function updatePresenceUser(
     userId: string,
     userName: string,
 ): void {
-    const presence = getPresence(yDoc);
+    const presence =
+        getPresence(yDoc);
 
-    const existingUser = presence.get(userId);
+    const existing =
+        presence.get(userId);
 
-    if (!existingUser) {
+    if (!existing) {
         addPresenceUser(
             yDoc,
             userId,
@@ -46,9 +51,9 @@ export function updatePresenceUser(
     }
 
     presence.set(userId, {
-        ...existingUser,
+        ...existing,
         userName,
-        lastSeen: Date.now(),
+        timestamp: Date.now(),
     });
 }
 
@@ -56,7 +61,15 @@ export function removePresenceUser(
     yDoc: Y.Doc,
     userId: string,
 ): void {
-    const presence = getPresence(yDoc);
+    const presence =
+        getPresence(yDoc);
+
+    const existing =
+        presence.get(userId);
+
+    if (!existing) {
+        return;
+    }
 
     presence.delete(userId);
 }
