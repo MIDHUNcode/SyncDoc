@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import {
+    useEffect,
+    useState,
+} from "react";
+
 import * as Y from "yjs";
 
 import {
@@ -10,18 +14,28 @@ import {
     yArrayToAST,
 } from "../services/collaboration/yjsToAst";
 
-import type { ASTNode } from "../types/document";
+import type {
+    ASTNode,
+} from "../types/document";
 
 import {
     addPresenceUser,
     removePresenceUser,
     updatePresenceUser,
+    pruneStalePresence,
 } from "../services/collaboration/presence";
 
 interface PresenceUser {
     userId: string;
     userName: string;
-    lastSeen: number;
+    timestamp: number;
+}
+
+export interface EditingUser {
+    userId: string;
+    userName: string;
+    nodeId: string;
+    expiresAt: number;
 }
 
 interface UseYjsDocumentResult {
@@ -29,6 +43,7 @@ interface UseYjsDocumentResult {
     nodes: Y.Array<Y.Map<unknown>> | null;
     astNodes: ASTNode[];
     presenceUsers: PresenceUser[];
+    editingUsers: EditingUser[];
     connected: boolean;
 }
 
@@ -49,32 +64,41 @@ export function useYjsDocument(
     const [presenceUsers, setPresenceUsers] =
         useState<PresenceUser[]>([]);
 
+    const [editingUsers, setEditingUsers] =
+        useState<EditingUser[]>([]);
+
     useEffect(() => {
         if (!documentId) {
             setClient(null);
             setConnected(false);
             setAstNodes([]);
             setPresenceUsers([]);
+            setEditingUsers([]);
 
             return;
         }
 
         const yjsClient =
-            createYjsClient(documentId, userId);
+            createYjsClient(
+                documentId,
+                userId,
+            );
 
-        const socket =
-            yjsClient.socket;
-
-        /*
-         * Presence map belongs to THIS document.
-         */
         const presence =
             yjsClient.doc.getMap<PresenceUser>(
                 "presence",
             );
 
+        const blockLocks =
+            yjsClient.doc.getMap<{
+                userId: string;
+                userName: string;
+                timestamp: number;
+                expiresAt: number;
+            }>("blockLocks");
+
         /*
-         * Update AST state.
+         * Convert Yjs -> React AST.
          */
         const updateReactState = () => {
             const nodes =
@@ -86,7 +110,7 @@ export function useYjsDocument(
         };
 
         /*
-         * Update presence state.
+         * Convert Yjs presence -> React.
          */
         const updatePresenceState = () => {
             const users: PresenceUser[] = [];
@@ -105,65 +129,113 @@ export function useYjsDocument(
         };
 
         /*
-         * WebSocket opened.
+         * Convert block locks -> React.
          */
-        const handleOpen = () => {
-            setConnected(true);
+        const updateEditingState = () => {
+            const now = Date.now();
 
-            updateReactState();
-            updatePresenceState();
+            const users: EditingUser[] = [];
 
-            /*
-             * Register this browser in
-             * the CURRENT document.
-             */
-            addPresenceUser(
-                yjsClient.doc,
-                userId,
-                userName,
+            blockLocks.forEach(
+                (lock, nodeId) => {
+                    /*
+                     * Ignore invalid locks.
+                     */
+                    if (
+                        !lock ||
+                        !lock.userId ||
+                        !lock.userName
+                    ) {
+                        return;
+                    }
+
+                    /*
+                     * Remove expired locks.
+                     */
+                    if (
+                        now >=
+                        lock.expiresAt
+                    ) {
+                        blockLocks.delete(
+                            nodeId,
+                        );
+
+                        return;
+                    }
+
+                    users.push({
+                        userId:
+                            lock.userId,
+                        userName:
+                            lock.userName,
+                        nodeId,
+                        expiresAt:
+                            lock.expiresAt,
+                    });
+                },
             );
+
+            setEditingUsers(users);
         };
 
         /*
-         * WebSocket closed.
+         * Yjs connection state.
          */
-        const handleClose = () => {
-            setConnected(false);
-        };
+        const unsubscribeStatus =
+            yjsClient.onStatusChange(
+                (isConnected) => {
+                    setConnected(
+                        isConnected,
+                    );
 
-        /*
-         * WebSocket error.
-         */
-        const handleError = (
-            error: Event,
-        ) => {
-            console.error(
-                "❌ Yjs WebSocket error:",
-                error,
+                    if (isConnected) {
+                        updateReactState();
+                        updatePresenceState();
+                        updateEditingState();
+
+                        addPresenceUser(
+                            yjsClient.doc,
+                            userId,
+                            userName,
+                        );
+                    }
+                },
             );
-        };
 
         /*
-         * Observe AST changes.
+         * Observe AST.
          */
         yjsClient.nodes.observeDeep(
             updateReactState,
         );
 
         /*
-         * Observe presence changes.
+         * Observe presence.
          */
         presence.observe(
             updatePresenceState,
         );
 
         /*
+         * Observe block locks.
+         */
+        blockLocks.observe(
+            updateEditingState,
+        );
+
+        /*
          * Heartbeat.
+         *
+         * Refresh our presence,
+         * remove stale users,
+         * and remove expired locks.
          */
         const heartbeat =
             window.setInterval(() => {
                 if (
-                    yjsClient.socket.readyState ===
+                    yjsClient.socket &&
+                    yjsClient.socket
+                        .readyState ===
                     WebSocket.OPEN
                 ) {
                     updatePresenceUser(
@@ -171,41 +243,22 @@ export function useYjsDocument(
                         userId,
                         userName,
                     );
+
+                    pruneStalePresence(
+                        yjsClient.doc,
+                    );
+
+                    updateEditingState();
                 }
             }, 1000);
 
-        socket.addEventListener(
-            "open",
-            handleOpen,
-        );
-
-        socket.addEventListener(
-            "close",
-            handleClose,
-        );
-
-        socket.addEventListener(
-            "error",
-            handleError,
-        );
-
         /*
-         * If socket is already open.
+         * Set client.
          */
-        if (
-            socket.readyState ===
-            WebSocket.OPEN
-        ) {
-            handleOpen();
-        }
-
         setClient(yjsClient);
 
         /*
-         * IMPORTANT:
-         *
-         * Presence cleanup happens BEFORE
-         * yjsClient.destroy().
+         * Cleanup.
          */
         return () => {
             window.clearInterval(
@@ -213,13 +266,14 @@ export function useYjsDocument(
             );
 
             /*
-             * Remove this user from THIS
-             * document while the socket is
-             * still alive.
+             * Remove current user
+             * from presence.
              */
             if (
-                yjsClient.socket.readyState ===
-                WebSocket.OPEN
+                yjsClient.socket &&
+                yjsClient.socket
+                    .readyState ===
+                    WebSocket.OPEN
             ) {
                 removePresenceUser(
                     yjsClient.doc,
@@ -227,9 +281,8 @@ export function useYjsDocument(
                 );
             }
 
-            /*
-             * Remove listeners.
-             */
+            unsubscribeStatus();
+
             yjsClient.nodes.unobserveDeep(
                 updateReactState,
             );
@@ -238,30 +291,17 @@ export function useYjsDocument(
                 updatePresenceState,
             );
 
-            socket.removeEventListener(
-                "open",
-                handleOpen,
+            blockLocks.unobserve(
+                updateEditingState,
             );
 
-            socket.removeEventListener(
-                "close",
-                handleClose,
-            );
-
-            socket.removeEventListener(
-                "error",
-                handleError,
-            );
-
-            /*
-             * NOW destroy Yjs.
-             */
             yjsClient.destroy();
 
             setClient(null);
             setConnected(false);
             setAstNodes([]);
             setPresenceUsers([]);
+            setEditingUsers([]);
         };
     }, [
         documentId,
@@ -270,10 +310,20 @@ export function useYjsDocument(
     ]);
 
     return {
-        doc: client?.doc ?? null,
-        nodes: client?.nodes ?? null,
+        doc:
+            client?.doc ??
+            null,
+
+        nodes:
+            client?.nodes ??
+            null,
+
         astNodes,
+
         presenceUsers,
+
+        editingUsers,
+
         connected,
     };
 }

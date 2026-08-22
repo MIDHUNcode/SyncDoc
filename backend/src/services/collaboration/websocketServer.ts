@@ -19,6 +19,18 @@ interface ConnectedClient {
 const connectedClients =
     new Map<WebSocket, ConnectedClient>();
 
+/*
+ * One Yjs update handler per document.
+ */
+const documentUpdateHandlers =
+    new Map<
+        string,
+        (
+            update: Uint8Array,
+            origin: unknown
+        ) => void
+    >();
+
 export const initializeWebSocketServer = (
     server: Server
 ) => {
@@ -93,6 +105,63 @@ export const initializeWebSocketServer = (
             clients.add(socket);
 
             /*
+             * Create ONE Yjs update handler
+             * for this document.
+             */
+            if (
+                !documentUpdateHandlers.has(
+                    documentId
+                )
+            ) {
+                const updateHandler = (
+                    update: Uint8Array,
+                    origin: unknown
+                ) => {
+                    const clientsForDocument =
+                        documentClients.get(
+                            documentId
+                        );
+
+                    if (
+                        !clientsForDocument
+                    ) {
+                        return;
+                    }
+
+                    /*
+                     * The origin is the socket
+                     * that originally sent the
+                     * update.
+                     *
+                     * Send the update to every
+                     * OTHER connected client.
+                     */
+                    for (
+                        const client
+                        of clientsForDocument
+                    ) {
+                        if (
+                            client !== origin &&
+                            client.readyState ===
+                            WebSocket.OPEN
+                        ) {
+                            client.send(update);
+                        }
+                    }
+                };
+
+                documentUpdateHandlers.set(
+                    documentId,
+                    updateHandler
+                );
+
+                yDoc.on(
+                    "update",
+                    updateHandler
+                );
+            }
+
+            /*
              * Send current Yjs state to
              * newly connected client.
              */
@@ -111,49 +180,6 @@ export const initializeWebSocketServer = (
             }
 
             /*
-             * Listen for Yjs updates.
-             */
-            const updateHandler = (
-                update: Uint8Array,
-                origin: unknown
-            ) => {
-                if (
-                    origin === socket
-                ) {
-                    return;
-                }
-
-                const clientsForDocument =
-                    documentClients.get(
-                        documentId
-                    );
-
-                if (
-                    !clientsForDocument
-                ) {
-                    return;
-                }
-
-                for (
-                    const client
-                    of clientsForDocument
-                ) {
-                    if (
-                        client !== socket &&
-                        client.readyState ===
-                        WebSocket.OPEN
-                    ) {
-                        client.send(update);
-                    }
-                }
-            };
-
-            yDoc.on(
-                "update",
-                updateHandler
-            );
-
-            /*
              * Receive messages.
              */
             socket.on(
@@ -162,30 +188,33 @@ export const initializeWebSocketServer = (
                     try {
                         /*
                          * Text message.
-                         *
-                         * ws gives us the isBinary flag,
-                         * so don't rely on typeof message.
                          */
                         if (!isBinary) {
                             const text =
-                                message.toString("utf8");
+                                message.toString(
+                                    "utf8"
+                                );
 
                             try {
                                 const data =
-                                    JSON.parse(text);
+                                    JSON.parse(
+                                        text
+                                    );
 
                                 if (
                                     data.type ===
-                                    "presence:init" &&
+                                        "presence:init" &&
                                     typeof data.userId ===
-                                    "string"
+                                        "string"
                                 ) {
                                     const connection =
                                         connectedClients.get(
                                             socket
                                         );
 
-                                    if (connection) {
+                                    if (
+                                        connection
+                                    ) {
                                         connection.userId =
                                             data.userId;
                                     }
@@ -203,43 +232,60 @@ export const initializeWebSocketServer = (
                         }
 
                         /*
-                         * Binary message = Yjs update.
+                         * Binary message =
+                         * Yjs update.
                          */
                         let update: Uint8Array;
 
-                        if (Buffer.isBuffer(message)) {
-                            update = new Uint8Array(
-                                message.buffer,
-                                message.byteOffset,
-                                message.byteLength,
-                            );
-                        } else if (
-                            message instanceof ArrayBuffer
+                        if (
+                            Buffer.isBuffer(
+                                message
+                            )
                         ) {
-                            update = new Uint8Array(
-                                message,
-                            );
+                            update =
+                                new Uint8Array(
+                                    message.buffer,
+                                    message.byteOffset,
+                                    message.byteLength,
+                                );
                         } else if (
-                            Array.isArray(message)
+                            message instanceof
+                            ArrayBuffer
+                        ) {
+                            update =
+                                new Uint8Array(
+                                    message
+                                );
+                        } else if (
+                            Array.isArray(
+                                message
+                            )
                         ) {
                             const combined =
-                                Buffer.concat(message);
+                                Buffer.concat(
+                                    message
+                                );
 
-                            update = new Uint8Array(
-                                combined.buffer,
-                                combined.byteOffset,
-                                combined.byteLength,
-                            );
+                            update =
+                                new Uint8Array(
+                                    combined.buffer,
+                                    combined.byteOffset,
+                                    combined.byteLength,
+                                );
                         } else {
                             throw new Error(
-                                "❌ Unsupported WebSocket binary message type",
+                                "❌ Unsupported WebSocket binary message type"
                             );
                         }
 
+                        /*
+                         * Apply the update with
+                         * this socket as origin.
+                         */
                         Y.applyUpdate(
                             yDoc,
                             update,
-                            socket, 
+                            socket
                         );
                     } catch (error) {
                         console.error(
@@ -268,26 +314,26 @@ export const initializeWebSocketServer = (
                     if (
                         connection?.userId
                     ) {
-                        const presenceUsers =
+                        const presence =
                             yDoc.getMap<{
                                 userId: string;
                                 userName: string;
-                                lastSeen: number;
+                                timestamp: number;
                             }>(
-                                "presenceUsers"
+                                "presence"
                             );
 
                         const userId =
                             connection.userId;
 
                         if (
-                            presenceUsers.has(
+                            presence.has(
                                 userId
                             )
                         ) {
                             yDoc.transact(
                                 () => {
-                                    presenceUsers.delete(
+                                    presence.delete(
                                         userId
                                     );
                                 },
@@ -305,14 +351,6 @@ export const initializeWebSocketServer = (
                     );
 
                     /*
-                     * Remove Yjs listener.
-                     */
-                    yDoc.off(
-                        "update",
-                        updateHandler
-                    );
-
-                    /*
                      * Remove connection info.
                      */
                     connectedClients.delete(
@@ -320,8 +358,9 @@ export const initializeWebSocketServer = (
                     );
 
                     /*
-                     * Remove empty document
-                     * client collection.
+                     * If this was the last
+                     * client, remove the
+                     * document update handler.
                      */
                     if (
                         clients &&
@@ -330,6 +369,24 @@ export const initializeWebSocketServer = (
                         documentClients.delete(
                             documentId
                         );
+
+                        const updateHandler =
+                            documentUpdateHandlers.get(
+                                documentId
+                            );
+
+                        if (
+                            updateHandler
+                        ) {
+                            yDoc.off(
+                                "update",
+                                updateHandler
+                            );
+
+                            documentUpdateHandlers.delete(
+                                documentId
+                            );
+                        }
                     }
                 }
             );

@@ -3,7 +3,12 @@ import * as Y from "yjs";
 export interface YjsClient {
     doc: Y.Doc;
     nodes: Y.Array<Y.Map<unknown>>;
-    socket: WebSocket;
+    readonly socket: WebSocket;
+
+    onStatusChange: (
+        callback: (connected: boolean) => void,
+    ) => () => void;
+
     destroy: () => void;
 }
 
@@ -20,9 +25,7 @@ export function createYjsClient(
     const doc = new Y.Doc();
 
     const nodes =
-        doc.getArray<
-            Y.Map<unknown>
-        >("nodes");
+        doc.getArray<Y.Map<unknown>>("nodes");
 
     let socket: WebSocket;
 
@@ -33,9 +36,19 @@ export function createYjsClient(
 
     let reconnecting = false;
 
-    /*
-     * Create a WebSocket connection.
-     */
+    const statusListeners =
+        new Set<(connected: boolean) => void>();
+
+    const notifyStatus = (
+        connected: boolean,
+    ) => {
+        statusListeners.forEach(
+            (callback) => {
+                callback(connected);
+            },
+        );
+    };
+
     const connect = () => {
         if (destroyed) {
             return;
@@ -45,9 +58,9 @@ export function createYjsClient(
             socket &&
             (
                 socket.readyState ===
-                    WebSocket.OPEN ||
+                WebSocket.OPEN ||
                 socket.readyState ===
-                    WebSocket.CONNECTING
+                WebSocket.CONNECTING
             )
         ) {
             return;
@@ -56,6 +69,11 @@ export function createYjsClient(
         const socketUrl =
             `${WS_URL}/collab?documentId=${documentId}`;
 
+        console.log(
+            "🔌 Connecting Yjs:",
+            socketUrl,
+        );
+
         socket = new WebSocket(
             socketUrl,
         );
@@ -63,9 +81,6 @@ export function createYjsClient(
         socket.binaryType =
             "arraybuffer";
 
-        /*
-         * Connection opened.
-         */
         socket.addEventListener(
             "open",
             () => {
@@ -79,10 +94,6 @@ export function createYjsClient(
                     "🟢 Yjs connected",
                 );
 
-                /*
-                 * Tell server which user owns
-                 * this WebSocket connection.
-                 */
                 socket.send(
                     JSON.stringify({
                         type:
@@ -90,12 +101,11 @@ export function createYjsClient(
                         userId,
                     }),
                 );
+
+                notifyStatus(true);
             },
         );
 
-        /*
-         * Connection closed.
-         */
         socket.addEventListener(
             "close",
             () => {
@@ -107,16 +117,12 @@ export function createYjsClient(
                     "🔴 Yjs disconnected",
                 );
 
+                notifyStatus(false);
+
                 scheduleReconnect();
             },
         );
 
-        /*
-         * Connection error.
-         *
-         * The close event will normally
-         * follow and trigger reconnect.
-         */
         socket.addEventListener(
             "error",
             (error) => {
@@ -131,62 +137,68 @@ export function createYjsClient(
             },
         );
 
-        /*
-         * Incoming Yjs updates.
-         */
         socket.addEventListener(
             "message",
-            (event) => {
+            async (event) => {
                 if (destroyed) {
                     return;
                 }
 
                 try {
+                    let update:
+                        Uint8Array | null =
+                        null;
+
                     if (
                         event.data instanceof
                         ArrayBuffer
                     ) {
-                        Y.applyUpdate(
-                            doc,
+                        update =
                             new Uint8Array(
                                 event.data,
-                            ),
-                            "remote",
+                            );
+                    }
+
+                    else if (
+                        event.data instanceof
+                        Blob
+                    ) {
+                        const buffer =
+                            await event.data
+                                .arrayBuffer();
+
+                        update =
+                            new Uint8Array(
+                                buffer,
+                            );
+                    }
+
+                    if (!update) {
+                        console.warn(
+                            "⚠️ Unexpected WebSocket message",
+                            event.data,
                         );
 
                         return;
                     }
 
-                    if (
-                        event.data instanceof
-                        Blob
-                    ) {
-                        event.data
-                            .arrayBuffer()
-                            .then(
-                                (buffer) => {
-                                    if (
-                                        destroyed
-                                    ) {
-                                        return;
-                                    }
-
-                                    Y.applyUpdate(
-                                        doc,
-                                        new Uint8Array(
-                                            buffer,
-                                        ),
-                                        "remote",
-                                    );
-                                },
-                            );
-
-                        return;
-                    }
-
-                    console.error(
-                        "❌ Unexpected WebSocket message type",
+                    /*
+                     * IMPORTANT:
+                     *
+                     * Yjs itself handles duplicate
+                     * updates safely.
+                     *
+                     * The server must therefore
+                     * send the same Yjs document
+                     * state, not recreate AST nodes
+                     * with new Yjs IDs.
+                     */
+                    Y.applyUpdate(
+                        doc,
+                        update,
+                        "remote",
                     );
+
                 } catch (error) {
                     console.error(
                         "❌ Failed to apply Yjs update:",
@@ -197,9 +209,6 @@ export function createYjsClient(
         );
     };
 
-    /*
-     * Schedule automatic reconnect.
-     */
     const scheduleReconnect = () => {
         if (
             destroyed ||
@@ -227,10 +236,6 @@ export function createYjsClient(
             }, RECONNECT_DELAY);
     };
 
-    /*
-     * Send local Yjs updates to the
-     * server.
-     */
     const updateHandler = (
         update: Uint8Array,
         origin: unknown,
@@ -245,22 +250,22 @@ export function createYjsClient(
         if (
             !socket ||
             socket.readyState !==
-                WebSocket.OPEN
+            WebSocket.OPEN
         ) {
             return;
         }
 
         const buffer =
             update.buffer instanceof
-            ArrayBuffer
+                ArrayBuffer
                 ? update.buffer.slice(
-                      update.byteOffset,
-                      update.byteOffset +
-                          update.byteLength,
-                  )
+                    update.byteOffset,
+                    update.byteOffset +
+                    update.byteLength,
+                )
                 : new Uint8Array(
-                      update,
-                  ).buffer;
+                    update,
+                ).buffer;
 
         socket.send(buffer);
     };
@@ -270,9 +275,6 @@ export function createYjsClient(
         updateHandler,
     );
 
-    /*
-     * Initial connection.
-     */
     connect();
 
     const destroy = () => {
@@ -282,9 +284,6 @@ export function createYjsClient(
 
         destroyed = true;
 
-        /*
-         * Cancel pending reconnect.
-         */
         if (
             reconnectTimer !== null
         ) {
@@ -295,41 +294,48 @@ export function createYjsClient(
             reconnectTimer = null;
         }
 
-        /*
-         * Stop sending Yjs updates.
-         */
         doc.off(
             "update",
             updateHandler,
         );
 
-        /*
-         * Close WebSocket.
-         */
+        statusListeners.clear();
+
         if (
             socket &&
             (
                 socket.readyState ===
-                    WebSocket.OPEN ||
+                WebSocket.OPEN ||
                 socket.readyState ===
-                    WebSocket.CONNECTING
+                WebSocket.CONNECTING
             )
         ) {
             socket.close();
         }
 
-        /*
-         * Destroy Yjs document.
-         */
         doc.destroy();
     };
 
     return {
         doc,
         nodes,
+
         get socket() {
             return socket;
         },
+
+        onStatusChange(callback) {
+            statusListeners.add(
+                callback,
+            );
+
+            return () => {
+                statusListeners.delete(
+                    callback,
+                );
+            };
+        },
+
         destroy,
     };
 }

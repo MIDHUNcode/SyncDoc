@@ -62,28 +62,51 @@ function EditableBlock({
             if (
                 lock &&
                 Date.now() >=
-                    lock.expiresAt
+                lock.expiresAt
             ) {
                 cleanupExpiredLocks(
                     yDoc,
                 );
 
                 setLockedBy(null);
+
+                /*
+                 * If our own lock expired,
+                 * leave editing mode.
+                 */
+                if (
+                    lock.userId === userId
+                ) {
+                    setIsEditing(false);
+                }
+
                 return;
             }
 
             /*
-             * Only show locks belonging
-             * to other users.
+             * Lock belongs to another user.
              */
             if (
                 lock &&
                 lock.userId !== userId
             ) {
                 setLockedBy(lock);
-            } else {
-                setLockedBy(null);
+
+                /*
+                 * Make sure we don't remain
+                 * in editing mode if another
+                 * user owns the lock.
+                 */
+                setIsEditing(false);
+
+                return;
             }
+
+            /*
+             * No other user is locking
+             * this block.
+             */
+            setLockedBy(null);
         };
 
         updateLock();
@@ -92,10 +115,6 @@ function EditableBlock({
 
         /*
          * Check expiration periodically.
-         *
-         * This is important because an
-         * expired lock may not create a
-         * Yjs update by itself.
          */
         const expirationTimer =
             window.setInterval(() => {
@@ -165,10 +184,6 @@ function EditableBlock({
 
         /*
          * Refresh every 3 seconds.
-         *
-         * Lock duration is 10 seconds,
-         * so there is enough margin if
-         * one refresh is delayed.
          */
         const refreshTimer =
             window.setInterval(() => {
@@ -220,8 +235,7 @@ function EditableBlock({
 
     /*
      * Release the lock if the block
-     * is removed/unmounted while
-     * this user owns it.
+     * is removed/unmounted.
      */
     useEffect(() => {
         return () => {
@@ -251,15 +265,39 @@ function EditableBlock({
                 position: "relative",
             }}
         >
-            {lockedBy && (
+            {isEditing && (
                 <div
                     style={{
                         marginBottom: "6px",
                         fontSize: "13px",
+                        fontWeight: 500,
                     }}
                 >
-                    🔒 Being edited by{" "}
-                    {lockedBy.userName}
+                    ✏️ You are editing this block
+                </div>
+            )}
+
+            {lockedBy && (
+                <div
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        marginBottom: "6px",
+                        padding: "5px 9px",
+                        borderRadius: "6px",
+                        background: "#2a2520",
+                        color: "#ffcc66",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                    }}
+                >
+                    <span>✏️</span>
+
+                    <span>
+                        {lockedBy.userName}
+                        {" is editing"}
+                    </span>
                 </div>
             )}
 
@@ -287,9 +325,11 @@ function EditableBlock({
                     width: "100%",
                     padding: "10px",
                     border:
-                        isLockedByOtherUser
-                            ? "1px solid #777"
-                            : "1px solid #666",
+                        isEditing
+                            ? "1px solid #4caf50"
+                            : isLockedByOtherUser
+                                ? "1px solid #ffcc66"
+                                : "1px solid #666",
                     borderRadius: "6px",
                     resize: "vertical",
                     boxSizing:
@@ -306,6 +346,8 @@ function EditableBlock({
                         isLockedByOtherUser
                             ? "not-allowed"
                             : "text",
+                    outline:
+                        "none",
                 }}
             />
 
