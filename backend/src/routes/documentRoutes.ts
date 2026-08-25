@@ -1,8 +1,11 @@
 import { Router } from "express";
 import Document from "../models/Document.js";
 
-const router = Router();
+import {
+  exportDocumentPDF,
+} from "../controllers/exportController";
 
+const router = Router();
 /**
  * GET /api/documents
  * Get all documents
@@ -27,6 +30,14 @@ router.get("/", async (_req, res) => {
         });
     }
 });
+
+/*
+* GET /api/documents/:id/export/pdf
+*/
+router.get(
+  "/:id/export/pdf",
+  exportDocumentPDF,
+);
 
 /**
  * GET /api/documents/:id
