@@ -7,13 +7,20 @@ export function renderParagraph(
 ): void {
   const { doc } = context;
 
+  const content = node.content ?? "";
+
+  if (!content.trim()) {
+    doc.moveDown(0.5);
+    return;
+  }
+
   doc
-    .fontSize(12)
     .font("Helvetica")
-    .text(node.content ?? "", {
+    .fontSize(12)
+    .text(content, {
       align: "left",
-      paragraphGap: 8,
+      lineGap: 3,
     });
 
-  doc.moveDown(0.5);
+  doc.moveDown(0.75);
 }

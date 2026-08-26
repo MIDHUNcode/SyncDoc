@@ -15,16 +15,23 @@ export function generatePDF(
 ) {
   const pdf = new PDFDocument({
     margin: 50,
+    info: {
+      Title: document.title,
+      Author: "SyncDoc",
+      Subject: "SyncDoc Document Export",
+      Creator: "SyncDoc",
+    },
   });
 
+  // Document title
   pdf
     .font("Helvetica-Bold")
     .fontSize(26)
-    .text(document.title, {
+    .text(document.title || "Untitled Document", {
       align: "center",
     });
 
-  pdf.moveDown(1);
+  pdf.moveDown(2);
 
   document.nodes.forEach((node) => {
     renderNode(node, pdf);
