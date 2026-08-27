@@ -11,14 +11,13 @@ export async function exportDocumentPDF(
   try {
     const { id } = req.params;
 
-    const document = await Document.findById(id).lean();
+    const document = await Document.findById(id);
 
     if (!document) {
       res.status(404).json({
         success: false,
         message: "Document not found",
       });
-
       return;
     }
 
@@ -29,13 +28,6 @@ export async function exportDocumentPDF(
 
     const pdf = generatePDF(exportDocument);
 
-    const safeTitle =
-      document.title
-        .replace(/[^a-z0-9-_ ]/gi, "")
-        .trim()
-        .replace(/\s+/g, "-") ||
-      "document";
-
     res.setHeader(
       "Content-Type",
       "application/pdf",
@@ -43,13 +35,17 @@ export async function exportDocumentPDF(
 
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${safeTitle}.pdf"`,
+      `attachment; filename="${document.title}.pdf"`,
     );
 
+    // Pipe PDF stream into HTTP response
     pdf.pipe(res);
+
+    // IMPORTANT: end PDF stream AFTER piping
+    pdf.end();
   } catch (error) {
     console.error(
-      "❌ PDF export error:",
+      "❌ PDF export failed:",
       error,
     );
 
