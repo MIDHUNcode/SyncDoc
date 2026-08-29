@@ -1,13 +1,26 @@
+import {
+    useEffect,
+    useState,
+} from "react";
+
 import type { ASTNode } from "../../types/document";
+import type { AtomicBlockState } from "../../types/blockState";
+
 import * as Y from "yjs";
 
 import HeadingBlock from "./HeadingBlock";
 import ParagraphBlock from "./ParagraphBlock";
 import CodeBlock from "./CodeBlock";
 import ListBlock from "./ListBlock";
+import ASTBlock from "./ASTBlock";
+
+import {
+    createAtomicBlockState,
+} from "../../state/atomicBlockState";
 
 interface ASTRendererProps {
     nodes: ASTNode[];
+
     onChange?: (
         id: string,
         content: string,
@@ -25,14 +38,47 @@ function ASTRenderer({
     userId,
     userName,
 }: ASTRendererProps) {
+    const [
+        blockStates,
+        setBlockStates,
+    ] = useState<
+        Record<string, AtomicBlockState>
+    >({});
+
+    useEffect(() => {
+        setBlockStates((currentStates) => {
+            const nextStates = {
+                ...currentStates,
+            };
+
+            nodes.forEach((node) => {
+                if (!nextStates[node.id]) {
+                    nextStates[node.id] =
+                        createAtomicBlockState(
+                            node.id,
+                        );
+                }
+            });
+
+            return nextStates;
+        });
+    }, [nodes]);
+
     return (
         <div>
             {nodes.map((node) => {
+                const state =
+                    blockStates[node.id] ??
+                    createAtomicBlockState(
+                        node.id,
+                    );
+
+                let block: React.ReactNode;
+
                 switch (node.type) {
                     case "heading":
-                        return (
+                        block = (
                             <HeadingBlock
-                                key={node.id}
                                 node={node}
                                 onChange={onChange}
                                 yDoc={yDoc}
@@ -40,11 +86,11 @@ function ASTRenderer({
                                 userName={userName}
                             />
                         );
+                        break;
 
                     case "paragraph":
-                        return (
+                        block = (
                             <ParagraphBlock
-                                key={node.id}
                                 node={node}
                                 onChange={onChange}
                                 yDoc={yDoc}
@@ -52,11 +98,11 @@ function ASTRenderer({
                                 userName={userName}
                             />
                         );
+                        break;
 
                     case "code":
-                        return (
+                        block = (
                             <CodeBlock
-                                key={node.id}
                                 node={node}
                                 onChange={onChange}
                                 yDoc={yDoc}
@@ -64,23 +110,34 @@ function ASTRenderer({
                                 userName={userName}
                             />
                         );
+                        break;
 
                     case "list":
-                        return (
+                        block = (
                             <ListBlock
-                                key={node.id}
                                 node={node}
                             />
                         );
+                        break;
 
                     default:
-                        return (
-                            <div key={node.id}>
+                        block = (
+                            <div>
                                 Unsupported node type:{" "}
                                 {node.type}
                             </div>
                         );
                 }
+
+                return (
+                    <ASTBlock
+                        key={node.id}
+                        node={node}
+                        state={state}
+                    >
+                        {block}
+                    </ASTBlock>
+                );
             })}
         </div>
     );
