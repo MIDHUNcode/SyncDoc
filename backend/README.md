@@ -4,29 +4,33 @@ SyncDoc Backend is the server-side component of **SyncDoc**, a real-time collabo
 
 The backend provides:
 
-- AST document persistence
-- Recursive AST validation
-- REST APIs
-- Yjs collaborative document management
-- WebSocket synchronization
-- CRDT-based real-time collaboration
-- User presence management
-- Block-level locking
-- AST transformation
-- PDF generation
-- PDF export API
+* AST document persistence
+* Recursive AST validation
+* REST APIs
+* Yjs collaborative document management
+* WebSocket synchronization
+* CRDT-based real-time collaboration
+* User presence management
+* Block-level locking
+* AST transformation
+* Export document generation
+* PDF generation
+* PDF export API
+* Collaborative AST integration
+* Targeted AST block updates
 
 ---
 
 ## 🚧 Project Status
 
-| Phase | Status |
-|---|---|
-| Week 1 — AST Foundation | ✅ Complete |
-| Week 2 — Yjs + WebSocket + CRDT | ✅ Complete |
-| Week 3 — Transformation & PDF Export | 🚧 In Progress |
+| Phase                                | Status     |
+| ------------------------------------ | ---------- |
+| Week 1 — AST Foundation              | ✅ Complete |
+| Week 2 — Yjs + WebSocket + CRDT      | ✅ Complete |
+| Week 3 — Transformation & PDF Export | ✅ Complete |
 
 **Current Phase:** Week 3 — Transformation & PDF Export
+**Backend Status:** ✅ Week 1 + Week 2 + Week 3 Complete
 
 ---
 
@@ -34,55 +38,68 @@ The backend provides:
 
 ## Week 1 — AST Foundation
 
-- Node.js + Express + TypeScript
-- MongoDB + Mongoose
-- Nested AST document storage
-- Recursive AST validation
-- Node ID validation
-- Node type validation
-- Duplicate node ID detection
-- Child relationship validation
-- Deeply nested AST validation
-- Mongoose pre-save validation
-- Document CRUD REST APIs
-- Vitest automated tests
+* Node.js + Express + TypeScript
+* MongoDB + Mongoose
+* Nested AST document storage
+* Recursive AST validation
+* Node ID validation
+* Node type validation
+* Duplicate node ID detection
+* Child relationship validation
+* Deeply nested AST validation
+* Mongoose pre-save validation
+* Document CRUD REST APIs
+* Vitest automated tests
 
 ## Week 2 — Real-Time Collaboration
 
-- Yjs document management
-- Yjs WebSocket synchronization
-- CRDT-based collaborative state
-- AST → Yjs conversion
-- Yjs → AST conversion
-- Multi-client synchronization
-- User presence
-- Presence cleanup
-- Block-level locking
-- Lock acquisition
-- Lock release
-- Lock refresh
-- Lock expiration
-- Expired lock cleanup
-- Reconnection support
-- Collaboration error handling
+* Yjs document management
+* Yjs WebSocket synchronization
+* CRDT-based collaborative state
+* AST → Yjs conversion
+* Yjs → AST conversion
+* Multi-client synchronization
+* User presence
+* Presence cleanup
+* Block-level locking
+* Lock acquisition
+* Lock release
+* Lock refresh
+* Lock expiration
+* Expired lock cleanup
+* Reconnection support
+* Collaboration error handling
+* Connection lifecycle management
 
 ## Week 3 — Transformation & PDF Export
 
-- AST → ExportDocument transformation
-- Export-specific node structures
-- Heading transformation
-- Paragraph transformation
-- Code transformation
-- List transformation
-- Nested list transformation
-- PDF document generation
-- PDF heading rendering
-- PDF paragraph rendering
-- PDF code rendering
-- PDF list rendering
-- PDF export controller
-- PDF export REST API
-- Downloadable PDF documents
+* Export architecture
+* AST → ExportDocument transformation
+* Export-specific node structures
+* Heading transformation
+* Paragraph transformation
+* Code transformation
+* List transformation
+* Nested list transformation
+* Transformation validation
+* Transformation tests
+* PDF document generation
+* PDF heading rendering
+* PDF paragraph rendering
+* PDF code rendering
+* PDF list rendering
+* Nested list rendering
+* PDF export controller
+* PDF export REST API
+* Downloadable PDF documents
+* Yjs → AST integration for export
+* Collaborative document export
+* Cursor/context state design
+* Atomic block state
+* AST block integration
+* Targeted AST updates
+* Selection and block state handling
+* Final transformation testing
 
 ---
 
@@ -90,11 +107,11 @@ The backend provides:
 
 SyncDoc currently supports:
 
-- `heading`
-- `paragraph`
-- `code`
-- `list`
-- `listItem`
+* `heading`
+* `paragraph`
+* `code`
+* `list`
+* `listItem`
 
 Documents are stored as nested AST structures instead of plain text.
 
@@ -176,7 +193,7 @@ http://localhost:5000/api
 ## Export API
 
 | Method | Endpoint                    | Purpose                |
-| ------ | ---------------------------- | ---------------------- |
+| ------ | --------------------------- | ---------------------- |
 | GET    | `/documents/:id/export/pdf` | Export document as PDF |
 
 ## Health API
@@ -189,9 +206,9 @@ http://localhost:5000/api
 
 # 🤝 Yjs + CRDT Collaboration
 
-Week 2 introduced real-time collaborative document synchronization using **Yjs and WebSockets**.
+SyncDoc uses **Yjs and WebSockets** for real-time collaborative document synchronization.
 
-The backend maintains Yjs documents for connected SyncDoc clients.
+The backend maintains Yjs documents for connected clients.
 
 ### Collaboration Flow
 
@@ -227,10 +244,13 @@ Responsibilities include:
 
 * Creating Yjs documents
 * Retrieving existing Yjs documents
-* Managing document lifecycle
+* Loading MongoDB AST into Yjs
+* Managing Yjs document lifecycle
 * Maintaining shared Yjs state
 * Applying Yjs updates
 * Synchronizing connected clients
+* Persisting collaborative state
+* Cleaning up inactive Yjs documents
 
 Architecture:
 
@@ -260,14 +280,14 @@ SyncDoc maintains conversion between its persistent AST representation and Yjs c
               │     AST     │
               └──────┬──────┘
                      │
-                AST → Yjs
+                 AST → Yjs
                      │
                      ▼
               ┌─────────────┐
               │ Yjs Document│
               └──────┬──────┘
                      │
-                Yjs → AST
+                 Yjs → AST
                      │
                      ▼
               ┌─────────────┐
@@ -275,15 +295,13 @@ SyncDoc maintains conversion between its persistent AST representation and Yjs c
               └─────────────┘
 ```
 
-This separation allows MongoDB to remain the persistence layer while Yjs manages real-time collaborative state.
+The conversion layer allows the application to maintain a structural AST while Yjs manages collaborative state.
 
 ---
 
 # 🔌 WebSocket Server
 
 The backend provides a WebSocket endpoint for collaborative document connections.
-
-Example:
 
 ```text
 ws://localhost:5000/collab?documentId=<DOCUMENT_ID>
@@ -296,8 +314,11 @@ The WebSocket layer handles:
 * Yjs synchronization
 * Update broadcasting
 * Presence messages
-* Collaboration lifecycle
+* Connection lifecycle
 * Connection cleanup
+* Document-specific client management
+
+Each document maintains a shared Yjs update handler so updates are correctly broadcast to other clients connected to the same document.
 
 ---
 
@@ -314,6 +335,7 @@ Implemented:
 * Disconnect cleanup
 * Multiple connected users
 * User name synchronization
+* Connection-aware presence
 
 Example:
 
@@ -370,7 +392,7 @@ Release
 Available
 ```
 
-This prevents two users from simultaneously editing the same locked block while allowing collaboration elsewhere in the document.
+This prevents conflicting edits on the same block while allowing users to collaborate on different blocks.
 
 ---
 
@@ -400,15 +422,21 @@ Synchronize
 Connected
 ```
 
-The collaboration layer also cleans up stale presence and expired locks.
+The collaboration layer also handles:
+
+* Stale presence cleanup
+* Expired lock cleanup
+* Socket cleanup
+* Yjs document lifecycle
+* Connection error handling
 
 ---
 
-# 📄 Transformation Engine
+# 🧩 Week 3 — Transformation Engine
 
-Week 3 introduced a pure AST transformation layer.
+Week 3 introduced a dedicated transformation layer for converting the internal AST into an export-oriented document structure.
 
-The transformation layer converts internal AST nodes into an export-specific representation.
+The transformation layer separates the application's internal AST from the PDF representation.
 
 ```text
 ASTNode
@@ -426,13 +454,13 @@ transformAST()
 ExportDocument
 ```
 
-The export model intentionally does not copy collaboration-specific information such as node IDs.
+This separation allows PDF rendering to operate independently of the internal AST representation.
 
 ---
 
-# 🧩 Export Node Types
+# 📦 Export Document Structure
 
-The backend uses an export-specific structure:
+The transformation engine uses an export-specific representation.
 
 ```ts
 interface ExportNode {
@@ -454,6 +482,100 @@ interface ExportDocument {
   nodes: ExportNode[];
 }
 ```
+
+Collaboration-specific fields such as internal node IDs do not need to be exposed to the export layer.
+
+---
+
+# 🔁 AST Transformation Pipeline
+
+The complete transformation pipeline is:
+
+```text
+Collaborative Yjs State
+          │
+          ▼
+       Yjs → AST
+          │
+          ▼
+        ASTNode
+          │
+          ▼
+    transformAST()
+          │
+          ▼
+    ExportDocument
+          │
+          ▼
+      PDF Generator
+```
+
+Supported transformations include:
+
+* Heading
+* Paragraph
+* Code
+* List
+* List Item
+* Nested lists
+* Mixed AST documents
+* Empty nodes
+* Multiple heading levels
+
+---
+
+# 🧠 Block Management & Transformation State
+
+Week 3 also introduced state-oriented block management for structured editing.
+
+The system provides a foundation for tracking:
+
+* Active block
+* Cursor position
+* Selection boundaries
+* Atomic block state
+* Block identity
+* Targeted AST updates
+
+Conceptually:
+
+```text
+Editor State
+     │
+     ├── Active Block
+     │
+     ├── Cursor Position
+     │
+     ├── Selection Bounds
+     │
+     └── Atomic Block State
+              │
+              ▼
+        Targeted AST Update
+```
+
+This allows structural changes to be applied to specific AST blocks instead of unnecessarily replacing the complete document.
+
+---
+
+# 🎯 Targeted AST Updates
+
+SyncDoc supports localized AST updates.
+
+Instead of rebuilding the entire document for every block-level change:
+
+```text
+Document AST
+     │
+     ├── Heading
+     ├── Paragraph  ← Update
+     ├── Code
+     └── List
+```
+
+The transformation and collaboration layers can operate on the affected structural node.
+
+This approach supports the project's goal of efficient structural editing and provides a foundation for larger collaborative documents.
 
 ---
 
@@ -481,7 +603,37 @@ PDF Generator
 PDFDocument
 ```
 
-This separation allows the transformation engine to remain independent of the PDF implementation.
+Implemented renderers:
+
+* Heading renderer
+* Paragraph renderer
+* Code renderer
+* List renderer
+* Nested list rendering
+
+---
+
+# 📄 PDF Structure Generation
+
+The PDF generator handles the conversion from export structures into PDF layout operations.
+
+```text
+ExportDocument
+      │
+      ▼
+PDF Generator
+      │
+      ├── Render Heading
+      ├── Render Paragraph
+      ├── Render Code
+      ├── Render List
+      └── Render Nested Children
+      │
+      ▼
+PDFDocument
+```
+
+The rendering layer handles document structure while keeping transformation logic separate.
 
 ---
 
@@ -493,37 +645,98 @@ The backend provides:
 GET /api/documents/:id/export/pdf
 ```
 
-The export pipeline is:
+The complete export pipeline is:
 
 ```text
-MongoDB Document
-       │
-       ▼
+MongoDB / Yjs
+      │
+      ▼
      AST
-       │
-       ▼
- transformAST()
-       │
-       ▼
- ExportDocument
-       │
-       ▼
- generatePDF()
-       │
-       ▼
- HTTP PDF Response
-       │
-       ▼
- Browser Download
+      │
+      ▼
+transformAST()
+      │
+      ▼
+ExportDocument
+      │
+      ▼
+generatePDF()
+      │
+      ▼
+HTTP PDF Response
+      │
+      ▼
+Browser Download
 ```
 
-The endpoint generates a PDF from the current document structure.
+The endpoint generates and downloads the current document as a PDF.
 
 ---
 
-# 🏗️ Backend Architecture
+# 🧪 Week 3 Testing
 
-The current backend architecture is:
+Week 3 expanded automated testing around transformation and PDF generation.
+
+Tests cover:
+
+### AST Transformation
+
+* Heading transformation
+* Paragraph transformation
+* Code transformation
+* List transformation
+* Nested list transformation
+* Complete AST transformation
+* Unsupported node handling
+* Empty content handling
+
+### PDF Generation
+
+* Empty document generation
+* Empty paragraph
+* Empty code block
+* Empty list
+* Heading without content
+* Multiple heading levels
+* Multiple node types
+* Nested lists
+* Deeply nested lists
+* Complex mixed AST documents
+* Unsupported export node types
+* PDF generation failures
+
+### Validation
+
+TypeScript validation:
+
+```bash
+npx tsc --noEmit
+```
+
+Test suite:
+
+```bash
+npm test
+```
+
+Current backend validation:
+
+```text
+✓ TypeScript compilation
+✓ AST validation
+✓ AST → Yjs
+✓ Yjs → AST
+✓ AST transformation
+✓ PDF generation
+✓ PDF export
+✓ Collaborative synchronization
+```
+
+---
+
+# 🏗️ Complete Backend Architecture
+
+The complete Week 3 backend architecture is:
 
 ```text
                          Client
@@ -544,25 +757,28 @@ The current backend architecture is:
                          ┌───────────────┘
                          │
                          ▼
-                   Collaboration
+                  Collaboration
                          │
               ┌──────────┴──────────┐
               │                     │
           Presence              Block Locks
-
-AST
- │
- ▼
-Transformation Engine
- │
- ▼
-ExportDocument
- │
- ▼
-PDF Generator
- │
- ▼
-PDF Export API
+              │                     │
+              └──────────┬──────────┘
+                         │
+                         ▼
+                       AST
+                         │
+                         ▼
+               Transformation Engine
+                         │
+                         ▼
+                  ExportDocument
+                         │
+                         ▼
+                   PDF Generator
+                         │
+                         ▼
+                    PDF Export
 ```
 
 ---
@@ -591,7 +807,8 @@ backend/
 │   │   ├── collaboration/
 │   │   │   ├── yjsDocumentManager.ts
 │   │   │   ├── websocketServer.ts
-│   │   │   └── astToYjs.ts
+│   │   │   ├── astToYjs.ts
+│   │   │   └── yjsToAst.ts
 │   │   │
 │   │   ├── transformation/
 │   │   │   ├── astTransformer.ts
@@ -634,7 +851,7 @@ backend/
 # 🛠️ Technology Stack
 
 | Technology | Purpose                     |
-| ---------- | ---------------------------- |
+| ---------- | --------------------------- |
 | Node.js    | Runtime                     |
 | Express    | REST API                    |
 | TypeScript | Type safety                 |
@@ -683,7 +900,7 @@ Server:
 http://localhost:5000
 ```
 
-The WebSocket collaboration endpoint is:
+WebSocket collaboration endpoint:
 
 ```text
 ws://localhost:5000/collab?documentId=<DOCUMENT_ID>
@@ -708,62 +925,32 @@ Run the complete backend test suite:
 npm test
 ```
 
-Current tests cover:
+Run TypeScript validation:
 
-### AST Validation
-
-* Valid AST
-* Missing node ID
-* Invalid node type
-* Missing content
-* Duplicate node IDs
-* Invalid child relationships
-* Valid nested AST
-* Invalid deeply nested AST
-
-### AST → Yjs
-
-* AST conversion
-* Yjs node creation
-* Nested structure conversion
-* Collaborative state conversion
-
-### AST Transformation
-
-* Heading transformation
-* Paragraph transformation
-* Code transformation
-* List transformation
-* Complete AST transformation
-
-### PDF Generation
-
-* PDF document generation
-* PDF content generation
-
-Current test result:
-
-```text
-Test Files  4 passed
-Tests       20 passed
+```bash
+npx tsc --noEmit
 ```
+
+The backend should pass both TypeScript validation and the automated test suite before changes are committed.
 
 ---
 
 # 🗓️ Week 1 Progress
 
-### Completed
+### AST Foundation
 
-*  Express + TypeScript setup
-*  MongoDB + Mongoose
-*  AST schema
-*  Recursive AST validation
-*  Duplicate node validation
-*  Child relationship validation
-*  Mongoose pre-save validation
-*  Automated AST tests
-*  Document CRUD APIs
-*  Production build
+Completed:
+
+* Express + TypeScript setup
+* MongoDB + Mongoose
+* AST schema
+* Recursive AST validation
+* Duplicate node validation
+* Child relationship validation
+* Mongoose pre-save validation
+* Automated AST tests
+* Document CRUD APIs
+* Production build
 
 **Week 1: ✅ Complete**
 
@@ -771,31 +958,31 @@ Tests       20 passed
 
 # 🗓️ Week 2 Progress
 
-### Yjs
+### Yjs & Collaboration
 
-*  Yjs integration
-*  Yjs document manager
-*  Yjs WebSocket server
-*  Yjs synchronization
-*  AST → Yjs conversion
-*  Yjs → AST conversion
+Completed:
 
-### Collaboration
-
-*  Real-time document synchronization
-*  Multi-client synchronization
-*  User presence
-*  Presence cleanup
-*  User identity
-*  Block-level locking
-*  Lock acquisition
-*  Lock release
-*  Lock refresh
-*  Lock expiration
-*  Expired lock cleanup
-*  Reconnection handling
-*  Collaboration error handling
-*  Multi-client validation
+* Yjs integration
+* Yjs document manager
+* Yjs WebSocket server
+* Yjs synchronization
+* AST → Yjs conversion
+* Yjs → AST conversion
+* Real-time document synchronization
+* Multi-client synchronization
+* User presence
+* Presence cleanup
+* User identity
+* Block-level locking
+* Lock acquisition
+* Lock release
+* Lock refresh
+* Lock expiration
+* Expired lock cleanup
+* Reconnection handling
+* Collaboration error handling
+* Multi-client validation
+* CRDT synchronization validation
 
 **Week 2: ✅ Complete**
 
@@ -803,39 +990,63 @@ Tests       20 passed
 
 # 🗓️ Week 3 Progress
 
-### Transformation
+### Transformation Engine
 
-*  Transformation service architecture
-*  Export node types
-*  AST → ExportDocument
-*  Heading transformation
-*  Paragraph transformation
-*  Code transformation
-*  List transformation
-*  Nested list transformation
+Completed:
+
+* Export architecture
+* Export document model
+* AST → ExportDocument transformation
+* Heading transformation
+* Paragraph transformation
+* Code transformation
+* List transformation
+* Nested list transformation
+* Transformation dispatcher
+* Transformation validation
+* Transformation tests
+
+### Block Management
+
+Completed:
+
+* Context state design
+* Active block tracking
+* Cursor position tracking
+* Selection bounds
+* Atomic block state
+* AST block integration
+* Targeted AST updates
+* Block-level state handling
+
+### Yjs Integration
+
+Completed:
+
+* Yjs → AST integration
+* Collaborative AST transformation
+* Current Yjs state handling
+* Document-specific synchronization
+* Exporting current collaborative document state
 
 ### PDF
 
-*  PDFKit integration
-*  PDF document generation
-*  Heading renderer
-*  Paragraph renderer
-*  Code renderer
-*  List renderer
-*  PDF generator tests
-*  PDF export controller
-*  PDF export endpoint
-*  Browser PDF download
+Completed:
 
-### Remaining
+* PDFKit integration
+* PDF document generation
+* Heading renderer
+* Paragraph renderer
+* Code renderer
+* List renderer
+* Nested list rendering
+* PDF export controller
+* PDF export endpoint
+* Browser PDF download
+* PDF generation tests
+* Export validation
 
-*  Advanced PDF formatting
-*  Improved page layout
-*  Export validation
-*  Advanced code formatting
-*  Final PDF quality testing
-
-**Week 3: 🚧 In Progress**
+**Week 3: ✅ Complete**
 
 ---
 
@@ -851,7 +1062,7 @@ Yjs + WebSocket + CRDT
         │
         ▼
 Week 3
-AST Transformation + PDF Export
+Transformation + Block Management + PDF Export
         │
         ▼
 Week 4
@@ -860,11 +1071,7 @@ Security + Performance
 
 ---
 
-# 📊 Current Status
-
-**Project:** SyncDoc
-
-**Backend:**
+# 📊 Overall Project Status
 
 ```text
 Week 1 — AST Foundation
@@ -874,44 +1081,117 @@ Week 2 — Yjs + CRDT Collaboration
 ████████████████████ 100%
 
 Week 3 — Transformation + PDF Export
-████████████████░░░░ 80%
+████████████████████ 100%
 ```
 
-Current backend pipeline:
+### Overall
+
+**SyncDoc Backend: 100% complete through Week 3**
+
+---
+
+# 🔄 Complete SyncDoc Backend Pipeline
 
 ```text
-                    ┌───────────────┐
-                    │    Client     │
-                    └───────┬───────┘
-                            │
-                 ┌──────────┴──────────┐
-                 │                     │
-              REST API             WebSocket
-                 │                     │
-                 ▼                     ▼
-             Express                Yjs/CRDT
-                 │                     │
-                 ▼                     ▼
-             MongoDB             Collaboration
-                 │                     │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                           AST
-                            │
-                            ▼
-                    Transformation
-                            │
-                            ▼
-                     ExportDocument
-                            │
-                            ▼
-                       PDF Generator
-                            │
-                            ▼
-                       PDF Export
+                         ┌───────────────┐
+                         │    Client     │
+                         └───────┬───────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                 REST API                WebSocket
+                    │                         │
+                    ▼                         ▼
+                Express                  Yjs / CRDT
+                    │                         │
+                    ▼                         ▼
+                MongoDB                Collaboration
+                    │                         │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+                                AST
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+             Block Management          Transformation
+                    │                         │
+                    │                         ▼
+                    │                  ExportDocument
+                    │                         │
+                    └─────────────────────────┤
+                                              ▼
+                                        PDF Generator
+                                              │
+                                              ▼
+                                         PDF Export
+                                              │
+                                              ▼
+                                           Browser
 ```
 
-**Current milestone:** Real-time collaboration and PDF export are functional.
+---
 
-**Next milestone:** PDF formatting and transformation/export refinement.
+# 🎯 Project Goal
+
+SyncDoc Backend demonstrates how a modern collaborative document engine can combine:
+
+```text
+AST
++
+MongoDB
++
+Yjs
++
+CRDTs
++
+WebSockets
++
+TypeScript
++
+Transformation Engine
++
+Block Management
++
+PDFKit
++
+PDF Export
+```
+
+The backend is designed around **structural document synchronization** rather than plain-text synchronization.
+
+The architecture separates:
+
+```text
+Persistence
+    ↓
+Collaboration
+    ↓
+AST
+    ↓
+Transformation
+    ↓
+Export
+```
+
+This provides a clean foundation for future document formats, richer editing capabilities, and scalable collaboration.
+
+---
+
+# 📌 Final Status
+
+```text
+╔══════════════════════════════════════════════╗
+║              SyncDoc Backend                 ║
+╠══════════════════════════════════════════════╣
+║ Week 1 — AST Foundation             ✅ 100% ║
+║ Week 2 — Collaboration              ✅ 100% ║
+║ Week 3 — Transformation & PDF       ✅ 100% ║
+╠══════════════════════════════════════════════╣
+║ Current Milestone: Week 3 Complete           ║
+╚══════════════════════════════════════════════╝
+```
+
+**Current milestone:** Full collaborative AST + transformation + PDF export pipeline is functional.
+
+**Next milestone:** Week 4 security, performance optimization, scalability, and production hardening.

@@ -4,18 +4,20 @@
 
 The frontend allows users to browse, edit, and collaboratively synchronize structured documents in real time using **Yjs, WebSocket, and CRDT-based synchronization**.
 
+The frontend also integrates with the Week 3 transformation and PDF export pipeline, allowing users to export the latest synchronized document state as a PDF.
+
 ---
 
-## 🚧 Project Status
+# 🚧 Project Status
 
-| Phase                                | Status         |
-| ------------------------------------ | -------------- |
-| Week 1 — AST Foundation              | ✅ Complete     |
-| Week 2 — Yjs + CRDT Collaboration    | ✅ Complete     |
-| Week 3 — Transformation & PDF Export | 🚧 In Progress |
+| Phase                                       | Status     |
+| ------------------------------------------- | ---------- |
+| Week 1 — AST Foundation                     | ✅ Complete |
+| Week 2 — Yjs + CRDT Collaboration           | ✅ Complete |
+| Week 3 — Transformation, State & PDF Export | ✅ Complete |
 
 **Current Phase:** Week 3 — Transformation & PDF Export
-**Frontend Status:** ✅ Week 1 + Week 2 Complete
+**Frontend Status:** ✅ Week 1 + Week 2 + Week 3 Complete
 
 ---
 
@@ -92,6 +94,8 @@ User edits block
        ↓
 Editable Block
        ↓
+AST / Editor State
+       ↓
 Yjs Document
        ↓
 Yjs Update
@@ -109,43 +113,209 @@ React UI
 
 ---
 
-# 🔄 REST API Integration
+# 🧠 Editor State Management
 
-The frontend communicates with the SyncDoc backend through REST APIs for document persistence and retrieval.
+Week 3 introduced dedicated editor-state utilities to manage document editing independently from the React rendering layer.
 
-The API layer handles:
+The editor state tracks:
 
-* Fetching documents
-* Fetching individual documents
-* Retrieving document AST
-* Creating documents
-* Updating documents
-* Deleting documents
-* API response handling
-* API error handling
+* Active block
+* Active cursor position
+* Selection start
+* Selection end
+* Editing state
+* Block-level updates
 
 Architecture:
 
 ```text
-React Frontend
-      │
-      │ HTTP / REST
-      ▼
-SyncDoc Backend
+React Editor
       │
       ▼
-MongoDB
+Editor State
+      │
+      ├── Active Block
+      ├── Cursor Position
+      ├── Selection Bounds
+      └── Editing State
+      │
+      ▼
+AST / Yjs State
 ```
 
-REST APIs provide document persistence while Yjs/WebSocket handles real-time collaboration.
+This provides a cleaner foundation for targeted document editing and future rich-text functionality.
+
+---
+
+# 🎯 Cursor & Selection Handling
+
+The frontend contains utilities for managing cursor and selection information.
+
+Implemented:
+
+* Cursor position tracking
+* Selection start tracking
+* Selection end tracking
+* Selection bounds
+* Cursor validation
+* Selection normalization
+* Block-aware cursor state
+
+The state model allows the editor to identify exactly where the user is editing rather than treating the entire document as one editable region.
+
+Example:
+
+```text
+Document
+│
+├── Heading
+│
+├── Paragraph
+│       └── Cursor → position 12
+│
+└── Code
+```
+
+---
+
+# ⚛️ Atomic Block State
+
+Week 3 introduced atomic block state management.
+
+Each editable block can maintain its own editing state.
+
+Example:
+
+```text
+Document
+│
+├── Heading
+│   └── Atomic Block State
+│
+├── Paragraph
+│   └── Atomic Block State
+│
+└── Code
+    └── Atomic Block State
+```
+
+Implemented:
+
+* Block activation
+* Block deactivation
+* Cursor state
+* Selection state
+* Editing state
+* Block-local state updates
+* Atomic block state validation
+
+This keeps block editing localized and reduces unnecessary updates to unrelated document nodes.
+
+---
+
+# 🔄 Targeted AST Updates
+
+The frontend now supports targeted AST updates instead of unnecessarily rebuilding or replacing unrelated document state.
+
+Example:
+
+```text
+Before
+
+Document
+├── Heading A
+├── Paragraph B
+└── Code C
+
+
+User edits Paragraph B
+
+
+After
+
+Document
+├── Heading A       unchanged
+├── Paragraph B     updated
+└── Code C          unchanged
+```
+
+Implemented:
+
+* Node lookup by ID
+* Targeted content updates
+* Recursive AST updates
+* Nested node updates
+* Immutable state updates
+* Missing-node handling
+* Update validation
+
+This provides a foundation for efficient block-level editing.
+
+---
+
+# 🔄 Yjs Integration
+
+The frontend contains a dedicated Yjs client layer responsible for connecting the editor to the collaborative document.
+
+Implemented:
+
+* Yjs client initialization
+* WebSocket connection
+* Yjs document creation
+* Shared Yjs node state
+* Yjs update handling
+* Remote update synchronization
+* Connection lifecycle management
+* Reconnection handling
+* Collaborative state integration
+
+The Yjs document acts as the real-time source of collaborative document state.
+
+---
+
+# 🔁 AST ↔ Yjs Synchronization
+
+SyncDoc maintains a bridge between its structural AST and Yjs shared state.
+
+```text
+AST
+ │
+ ▼
+AST → Yjs
+ │
+ ▼
+Yjs Shared Document
+ │
+ ▼
+Yjs → AST
+ │
+ ▼
+React Editor
+```
+
+The frontend works with:
+
+```text
+ASTNode
+```
+
+while collaborative synchronization operates through:
+
+```text
+Y.Doc
+Y.Array
+Y.Map
+```
+
+This allows the editor to preserve its structural AST representation while using Yjs for conflict-free synchronization.
 
 ---
 
 # 🤝 Real-Time Collaboration
 
-Week 2 transformed the frontend from a local AST editor into a real-time collaborative editor.
+The frontend supports real-time multi-user document editing.
 
-The frontend now uses:
+Implemented:
 
 * Yjs
 * WebSocket
@@ -155,6 +325,7 @@ The frontend now uses:
 * Block-level locking
 * Reconnection handling
 * Connection status tracking
+* Remote AST updates
 
 The collaboration architecture is:
 
@@ -181,64 +352,6 @@ The collaboration architecture is:
       │   React Editor   │         │   React Editor   │
       │     User B       │         │     User C       │
       └──────────────────┘         └──────────────────┘
-```
-
----
-
-# 🧩 Yjs Integration
-
-The frontend contains a dedicated Yjs client layer responsible for connecting the editor to the collaborative document.
-
-Implemented:
-
-* Yjs client initialization
-* WebSocket connection
-* Yjs document creation
-* Shared Yjs node state
-* Yjs update handling
-* Remote update synchronization
-* Connection lifecycle management
-* Reconnection handling
-* Collaborative state integration
-
-The Yjs document acts as the real-time source of collaborative state.
-
----
-
-# 🔁 AST ↔ Yjs Synchronization
-
-SyncDoc maintains a bridge between its structural AST and Yjs shared state.
-
-```text
-AST
- │
- ▼
-AST → Yjs
- │
- ▼
-Yjs Shared Document
- │
- ▼
-Yjs → AST
- │
- ▼
-React Editor
-```
-
-This allows the application to preserve the structured AST model while using Yjs for conflict-free synchronization.
-
-The frontend can therefore work with:
-
-```text
-ASTNode
-```
-
-while collaborative synchronization operates through:
-
-```text
-Y.Doc
-Y.Array
-Y.Map
 ```
 
 ---
@@ -316,15 +429,13 @@ Release
 Available
 ```
 
-If a client disconnects or a lock expires, the lock can be cleaned up so another user can edit the block.
-
 ---
 
 # 🔌 Connection Management
 
 The frontend tracks the Yjs/WebSocket connection state.
 
-The UI can indicate states such as:
+The UI can indicate:
 
 ```text
 🟢 Connected
@@ -340,8 +451,6 @@ Implemented:
 * Reconnection delay
 * Connection cleanup
 * Collaboration error handling
-
-This prevents the editor from treating a temporary network failure as a permanent collaboration failure.
 
 ---
 
@@ -371,7 +480,7 @@ This allows clients to recover from temporary connection interruptions without r
 
 ---
 
-# 🧠 Collaborative State Architecture
+# 🧩 Collaborative State Architecture
 
 The frontend collaborative state is managed through a dedicated hook:
 
@@ -383,18 +492,20 @@ useYjsDocument()
       │
       ├── Yjs Document
       ├── Yjs Nodes
+      ├── AST Nodes
       ├── Presence
+      ├── Editing Users
       ├── Connection Status
       └── Collaboration Updates
 ```
 
-This keeps the React components focused on rendering and user interaction while the collaboration logic remains inside the Yjs service layer.
+This keeps React components focused on rendering and user interaction while collaboration logic remains inside the Yjs service layer.
 
 ---
 
 # 🏗️ Frontend Architecture
 
-The current frontend architecture can be represented as:
+The current frontend architecture is:
 
 ```text
 SyncDoc Frontend
@@ -407,7 +518,15 @@ SyncDoc Frontend
 │       │
 │       ├── Connection Status
 │       ├── Presence
+│       ├── Editing Indicators
 │       └── AST Editor
+│
+├── Editor State
+│       │
+│       ├── Cursor State
+│       ├── Selection State
+│       ├── Atomic Block State
+│       └── Targeted AST Updates
 │
 ├── API Layer
 │       │
@@ -420,6 +539,10 @@ SyncDoc Frontend
 │       ├── Presence
 │       └── Block Locks
 │
+├── Export Layer
+│       │
+│       └── PDF Download
+│
 └── AST Renderer
         │
         ├── Heading
@@ -428,6 +551,90 @@ SyncDoc Frontend
         ├── List
         └── List Item
 ```
+
+---
+
+# 📤 PDF Export Integration
+
+Week 3 introduced frontend integration with the backend PDF export pipeline.
+
+The frontend provides an export action that requests the current document from the backend.
+
+Export flow:
+
+```text
+User edits document
+        │
+        ▼
+Yjs Collaborative State
+        │
+        ▼
+Backend Persistence
+        │
+        ▼
+Current AST
+        │
+        ▼
+Transformation Engine
+        │
+        ▼
+PDF Generator
+        │
+        ▼
+PDF Response
+        │
+        ▼
+Browser Download
+```
+
+The export endpoint is:
+
+```http
+GET /api/documents/:id/export/pdf
+```
+
+The frontend uses the document ID to request the PDF.
+
+The exported PDF reflects the latest synchronized and persisted document state.
+
+---
+
+# 🔗 PDF Export Workflow
+
+The complete Week 3 export workflow is:
+
+```text
+React Editor
+     │
+     ▼
+Yjs Document
+     │
+     ▼
+Collaborative Updates
+     │
+     ▼
+Backend Persistence
+     │
+     ▼
+MongoDB AST
+     │
+     ▼
+AST Transformer
+     │
+     ▼
+ExportDocument
+     │
+     ▼
+PDF Generator
+     │
+     ▼
+PDF Response
+     │
+     ▼
+Browser Download
+```
+
+This ensures that the exported document is generated from the current persisted document state rather than an outdated frontend copy.
 
 ---
 
@@ -455,17 +662,42 @@ Each supported node is rendered according to its type.
 
 ---
 
+# 🧩 Supported AST Node Types
+
+| Node Type       | Rendering |             Editing | Collaboration | Targeted Updates |
+| --------------- | --------: | ------------------: | ------------: | ---------------: |
+| Heading         |         ✅ |                   ✅ |             ✅ |                ✅ |
+| Paragraph       |         ✅ |                   ✅ |             ✅ |                ✅ |
+| Code            |         ✅ |                   ✅ |             ✅ |                ✅ |
+| List            |         ✅ |                   ❌ |             ✅ |                ✅ |
+| List Item       |         ✅ |                   ❌ |             ✅ |                ✅ |
+| Nested Children |         ✅ | Based on child type |             ✅ |                ✅ |
+
+---
+
 # ⚛️ State Management
 
-Week 1 used local React state as the primary editing state.
+The frontend state architecture evolved across the three development phases.
 
-During Week 2, collaborative state was moved toward Yjs.
+### Week 1
 
-Current flow:
+Local React state was used for AST rendering and editing.
 
 ```text
-Backend AST
-     ↓
+REST API
+   ↓
+React State
+   ↓
+AST Renderer
+   ↓
+Editable Blocks
+```
+
+### Week 2
+
+Yjs became the collaborative source of document state.
+
+```text
 Yjs Document
      ↓
 Collaborative State
@@ -473,30 +705,153 @@ Collaborative State
 React Hook
      ↓
 AST Renderer
-     ↓
-Editable Blocks
 ```
 
-Local React state is still used where appropriate for UI concerns, while document collaboration is handled through Yjs.
+### Week 3
+
+Dedicated editor state utilities were introduced for precise block editing.
+
+```text
+Yjs Document
+     ↓
+AST Nodes
+     ↓
+Editor State
+     │
+     ├── Active Block
+     ├── Cursor
+     ├── Selection
+     └── Atomic Block State
+     ↓
+Targeted AST Update
+     ↓
+React UI
+```
+
+This separation makes the editor easier to extend and maintain.
 
 ---
 
-# 🧩 Supported AST Node Types
+# 🧪 Automated Testing
 
-| Node Type       | Rendering |             Editing | Collaboration |
-| --------------- | --------: | ------------------: | ------------: |
-| Heading         |         ✅ |                   ✅ |             ✅ |
-| Paragraph       |         ✅ |                   ✅ |             ✅ |
-| Code            |         ✅ |                   ✅ |             ✅ |
-| List            |         ✅ |                   ❌ |             ✅ |
-| List Item       |         ✅ |                   ❌ |             ✅ |
-| Nested Children |         ✅ | Based on child type |             ✅ |
+The frontend uses **Vitest** for automated testing.
+
+Current frontend test suite:
+
+```text
+✓ AST Updates
+✓ Cursor Utilities
+✓ Atomic Block State
+✓ Editor State
+✓ Yjs Updates
+```
+
+Current result:
+
+```text
+Test Files: 5 passed
+Tests:      44 passed
+```
+
+### Test Breakdown
+
+| Test Suite         |  Tests |
+| ------------------ | -----: |
+| AST Updates        |      8 |
+| Cursor Utilities   |      4 |
+| Atomic Block State |     10 |
+| Editor State       |     15 |
+| Yjs Updates        |      7 |
+| **Total**          | **44** |
+
+Run the frontend tests with:
+
+```bash
+npm test
+```
+
+---
+
+# 🧪 TypeScript Validation
+
+The frontend TypeScript project is also validated using:
+
+```bash
+npx tsc --noEmit
+```
+
+The current Week 3 implementation passes TypeScript validation successfully.
+
+---
+
+# 🌐 Manual Collaboration Testing
+
+The collaborative editor has been validated using multiple browser tabs.
+
+Tested scenarios:
+
+* Open the same document in two browser tabs
+* Both clients show Connected
+* Online user count updates correctly
+* Edit a block in Tab A
+* Verify the change appears in Tab B
+* Edit another block in Tab B
+* Verify the change appears in Tab A
+* Verify presence indicators
+* Verify editing indicators
+* Verify block-level collaboration
+* Verify connection lifecycle
+
+Example:
+
+```text
+Tab A
+  │
+  │ Edit Heading
+  ▼
+Yjs Update
+  │
+  ▼
+WebSocket
+  │
+  ▼
+Tab B
+  │
+  ▼
+Updated Heading
+```
+
+---
+
+# 📤 Manual PDF Export Testing
+
+The Week 3 export workflow has also been validated manually.
+
+Tested flow:
+
+```text
+Open existing document
+        ↓
+Edit paragraph
+        ↓
+Wait for synchronization/persistence
+        ↓
+Click Export PDF
+        ↓
+PDF downloads
+        ↓
+Open PDF
+        ↓
+Verify edited content
+```
+
+The exported PDF now reflects the latest synchronized document changes.
 
 ---
 
 # 📁 Project Structure
 
-The frontend currently follows a service/component architecture similar to:
+The frontend currently follows a component/service architecture:
 
 ```text
 src/
@@ -520,8 +875,25 @@ src/
 │   │   ├── presence.ts
 │   │   └── blockLock.ts
 │   │
-│   └── documents/
+│   ├── documents/
+│   │   └── ...
+│   │
+│   └── export/
 │       └── ...
+│
+├── state/
+│   ├── editorState.ts
+│   └── atomicBlockState.ts
+│
+├── utils/
+│   └── cursorUtils.ts
+│
+├── tests/
+│   ├── astUpdates.test.ts
+│   ├── cursorUtils.test.ts
+│   ├── atomicBlockState.test.ts
+│   ├── editorState.test.ts
+│   └── yjsUpdates.test.ts
 │
 ├── types/
 │   └── document.ts
@@ -530,7 +902,7 @@ src/
 └── main.tsx
 ```
 
-The exact structure may evolve as Week 3 development continues.
+The exact structure may evolve as the project continues.
 
 ---
 
@@ -548,6 +920,7 @@ The exact structure may evolve as Week 3 development continues.
 | WebSocket       | Real-time communication            |
 | CRDT            | Conflict-free synchronization      |
 | Session Storage | Client identity persistence        |
+| Vitest          | Automated testing                  |
 
 ---
 
@@ -622,7 +995,7 @@ Week 2 transformed the editor into a collaborative real-time application.
 
 ---
 
-# 📊 Week 2 Collaboration Flow
+# 🔄 Week 2 Collaboration Flow
 
 The final Week 2 collaboration flow is:
 
@@ -664,78 +1037,102 @@ The final Week 2 collaboration flow is:
 
 ---
 
-# 🧪 Testing
+# 📅 Week 3 — Transformation, State & PDF Export
 
-The frontend collaboration features have been tested using multiple browser clients.
+**Status: ✅ Complete**
 
-Validation includes:
+Week 3 expanded SyncDoc beyond basic collaboration by introducing dedicated editor-state management and integration with the document transformation and PDF export pipeline.
 
-* Document synchronization between clients
-* Real-time block updates
-* User presence
-* Presence cleanup
-* Block locking
-* Lock expiration
-* WebSocket reconnection
-* Connection status
-* Multiple simultaneous clients
-* Yjs state synchronization
+### Completed
 
-The backend automated test suite also validates the AST and collaboration-related transformation layers.
+#### Editor State
+
+* Editor state architecture
+* Active block tracking
+* Cursor position tracking
+* Selection bounds
+* Selection state
+* Cursor utilities
+* Selection utilities
+
+#### Atomic Block Management
+
+* Atomic block state
+* Block activation
+* Block editing state
+* Block-local state management
+* Atomic state validation
+
+#### AST Updates
+
+* Targeted AST updates
+* Node lookup by ID
+* Recursive node updates
+* Nested AST updates
+* Immutable AST updates
+* Update validation
+
+#### Yjs Integration
+
+* Editor state integration with Yjs
+* Collaborative AST updates
+* Remote update handling
+* Yjs-to-AST state updates
+* Collaborative editing validation
+
+#### PDF Export
+
+* Frontend PDF export integration
+* Export button/action
+* Document ID based export
+* PDF download handling
+* Latest synchronized content verification
 
 ---
 
-# 📌 Current Limitations
+# 📊 Week 3 Architecture
 
-The following areas remain available for future improvement:
-
-* Rich text formatting
-* Advanced cursor/selection awareness
-* More AST node types
-* Advanced collaborative selection visualization
-* Rich code syntax highlighting
-* Offline-first editing
-* Advanced conflict visualization
-* Performance optimization for very large documents
-* Advanced PDF export controls
-
----
-
-# 📅 Week 3 — Transformation & PDF Export
-
-**Status: 🚧 In Progress**
-
-Week 3 currently focuses on converting the collaborative AST into exportable document structures.
-
-Completed so far:
+The final Week 3 frontend flow is:
 
 ```text
-AST
- ↓
-ExportDocument
- ↓
-PDF Structure
- ↓
-PDF Generator
- ↓
-PDF Export API
+                React Editor
+                     │
+                     ▼
+              Editor State
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+          ▼                     ▼
+       Cursor              Selection
+          │                     │
+          └──────────┬──────────┘
+                     ▼
+              Atomic Block
+                     │
+                     ▼
+              Targeted AST
+                     │
+                     ▼
+                  Yjs
+                     │
+                     ▼
+               WebSocket
+                     │
+                     ▼
+              SyncDoc Backend
+                     │
+                     ▼
+            Persistent AST
+                     │
+                     ▼
+          Transformation Engine
+                     │
+                     ▼
+               PDF Generator
+                     │
+                     ▼
+              PDF Download
 ```
-
-The backend now provides:
-
-```http
-GET /api/documents/:id/export/pdf
-```
-
-The frontend can consume this endpoint to download the current document as a PDF.
-
-Upcoming Week 3 work includes:
-
-* PDF formatting refinement
-* Improved layout
-* Advanced code block formatting
-* Export validation
-* PDF quality improvements
 
 ---
 
@@ -751,7 +1148,7 @@ Yjs + WebSocket + CRDT
     │
     ▼
 Week 3
-Transformation + PDF Export
+Transformation + Editor State + PDF Export
     │
     ▼
 Future
@@ -760,11 +1157,11 @@ Rich Editing + Scalability + Additional Export Formats
 
 ### Current Progress
 
-| Phase                         | Status         |
-| ----------------------------- | -------------- |
-| Week 1 — AST Foundation       | ✅ 100%         |
-| Week 2 — Collaboration        | ✅ 100%         |
-| Week 3 — Transformation & PDF | 🚧 In Progress |
+| Phase                                | Status |
+| ------------------------------------ | ------ |
+| Week 1 — AST Foundation              | ✅ 100% |
+| Week 2 — Collaboration               | ✅ 100% |
+| Week 3 — Transformation & PDF Export | ✅ 100% |
 
 ---
 
@@ -795,6 +1192,18 @@ Run linting:
 npm run lint
 ```
 
+Run tests:
+
+```bash
+npm test
+```
+
+Run TypeScript validation:
+
+```bash
+npx tsc --noEmit
+```
+
 ---
 
 # 🔗 Backend Dependency
@@ -817,6 +1226,7 @@ Terminal 1
 cd backend
 npm run dev
 
+
 Terminal 2
 ──────────
 cd frontend
@@ -827,7 +1237,7 @@ npm run dev
 
 # 🎯 Project Goal
 
-SyncDoc Frontend is designed to demonstrate how a modern React application can combine:
+SyncDoc Frontend demonstrates how a modern React application can combine:
 
 ```text
 React
@@ -843,15 +1253,19 @@ CRDT
 WebSocket
 +
 Real-Time Collaboration
++
+Editor State
++
+PDF Export
 ```
 
-The primary goal is to build a **structural collaborative editor** where users can work on the same document in real time while preserving the document's AST structure.
+The primary goal is to build a **structural collaborative editor** where multiple users can work on the same document in real time while preserving its AST structure.
 
 ---
 
 # 📄 Project Summary
 
-The SyncDoc frontend has evolved from a local AST editor into a real-time collaborative document editor.
+The SyncDoc frontend has evolved through three major development phases.
 
 ### Week 1
 
@@ -863,6 +1277,36 @@ The SyncDoc frontend has evolved from a local AST editor into a real-time collab
 
 ### Week 3
 
-> **AST → Export Structure → PDF → Download**
+> **Editor State → Cursor/Selection → Atomic Blocks → Targeted AST Updates → Yjs → PDF Export**
 
-The current frontend provides the collaborative editing foundation required for SyncDoc's transformation and export pipeline.
+The frontend now provides:
+
+* A structural AST editor
+* Real-time multi-user collaboration
+* Presence tracking
+* Block-level editing locks
+* Cursor and selection state management
+* Atomic block state
+* Targeted AST updates
+* Yjs synchronization
+* PDF export integration
+* Automated frontend testing
+
+---
+
+# 🏁 Current Status
+
+```text
+Week 1 — AST Foundation
+████████████████████ 100%
+
+Week 2 — Yjs + CRDT Collaboration
+████████████████████ 100%
+
+Week 3 — Transformation + Editor State + PDF Export
+████████████████████ 100%
+```
+
+**Current milestone:** Week 3 is complete.
+
+The SyncDoc frontend now provides the complete editor and collaboration foundation required for future improvements such as rich-text editing, advanced selection awareness, offline editing, performance optimization, and additional export formats.
