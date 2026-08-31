@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
-import * as Y from "yjs";
 
 import type {
     DocumentData,
     ASTNode,
 } from "../../types/document";
+
+import {
+    updateYjsNodeContent,
+} from "../../services/collaboration/yjsUpdates";
+
+import {
+    exportDocumentPDF,
+    downloadPDF,
+} from "../../services/exportService";
 
 import ASTRenderer from "../blocks/ASTRenderer";
 import { useYjsDocument } from "../../hooks/useYjsDocument";
@@ -138,10 +146,29 @@ function DocumentViewer({
         yjsConnected,
     ]);
 
+    /*
+     * Local AST state.
+     *
+     * This keeps the editor responsive
+     * while Yjs handles collaboration.
+     */
     const [localNodes, setLocalNodes] =
         useState<ASTNode[]>(
             document.nodes,
         );
+
+    /*
+     * PDF export state.
+     */
+    const [
+        exportingPDF,
+        setExportingPDF,
+    ] = useState(false);
+
+    const [
+        exportError,
+        setExportError,
+    ] = useState<string | null>(null);
 
     /*
      * Reset local state when switching
@@ -151,6 +178,9 @@ function DocumentViewer({
         setLocalNodes(
             document.nodes,
         );
+
+        setExportError(null);
+        setExportingPDF(false);
     }, [
         document._id,
     ]);
@@ -169,12 +199,28 @@ function DocumentViewer({
         yjsConnected,
     ]);
 
+    /*
+     * Update a single AST node.
+     *
+     * React:
+     * - updates the targeted node
+     * - recreates only the affected
+     *   parent path
+     *
+     * Yjs:
+     * - updates only the targeted
+     *   Y.Map node
+     */
     const updateNodeContent = (
         id: string,
         content: string,
     ) => {
         /*
          * Update React immediately.
+         *
+         * This keeps the local editor
+         * responsive while Yjs handles
+         * collaboration.
          */
         setLocalNodes(
             (currentNodes) => {
@@ -193,15 +239,34 @@ function DocumentViewer({
                             }
 
                             if (
-                                node.children
+                                node.children?.length
                             ) {
-                                return {
-                                    ...node,
-                                    children:
-                                        updateNodes(
-                                            node.children,
-                                        ),
-                                };
+                                const updatedChildren =
+                                    updateNodes(
+                                        node.children,
+                                    );
+
+                                const childrenChanged =
+                                    updatedChildren.some(
+                                        (
+                                            child,
+                                            index,
+                                        ) =>
+                                            child !==
+                                            node.children?.[
+                                                index
+                                            ],
+                                    );
+
+                                if (
+                                    childrenChanged
+                                ) {
+                                    return {
+                                        ...node,
+                                        children:
+                                            updatedChildren,
+                                    };
+                                }
                             }
 
                             return node;
@@ -216,84 +281,90 @@ function DocumentViewer({
         );
 
         /*
-         * Update Yjs.
+         * Update only the targeted Yjs node.
          */
         if (
             yDoc &&
             yNodes
         ) {
-            yDoc.transact(() => {
-                const updateNode = (
-                    nodes: Y.Array<
-                        Y.Map<unknown>
-                    >,
-                ): boolean => {
-                    for (
-                        let i = 0;
-                        i < nodes.length;
-                        i++
-                    ) {
-                        const yNode =
-                            nodes.get(i);
-
-                        if (
-                            yNode.get(
-                                "id",
-                            ) === id
-                        ) {
-                            yNode.set(
-                                "content",
-                                content,
-                            );
-
-                            return true;
-                        }
-
-                        const children =
-                            yNode.get(
-                                "children",
-                            );
-
-                        if (
-                            children instanceof
-                            Y.Array
-                        ) {
-                            if (
-                                updateNode(
-                                    children as Y.Array<
-                                        Y.Map<unknown>
-                                    >,
-                                )
-                            ) {
-                                return true;
-                            }
-                        }
-                    }
-
-                    return false;
-                };
-
-                updateNode(
-                    yNodes,
+            const updated =
+                updateYjsNodeContent(
+                    yDoc,
+                    id,
+                    content,
                 );
-            });
-        } else {
-            /*
-             * REST fallback.
-             */
-            setLocalNodes(
-                (currentNodes) => {
-                    onChange({
-                        ...document,
-                        nodes:
-                            currentNodes,
-                    });
 
-                    return currentNodes;
-                },
-            );
+            if (!updated) {
+                console.warn(
+                    "⚠️ Yjs node not found:",
+                    id,
+                );
+            }
+
+            return;
         }
+
+        /*
+         * REST fallback when Yjs is
+         * not available.
+         */
+        setLocalNodes(
+            (currentNodes) => {
+                onChange({
+                    ...document,
+                    nodes:
+                        currentNodes,
+                });
+
+                return currentNodes;
+            },
+        );
     };
+
+    /*
+     * Export the current document as PDF.
+     */
+    const handleExportPDF =
+        async () => {
+            if (exportingPDF) {
+                return;
+            }
+
+            setExportingPDF(true);
+            setExportError(null);
+
+            try {
+                /*
+                 * Request the PDF from the
+                 * backend export endpoint.
+                 */
+                const pdf =
+                    await exportDocumentPDF(
+                        document._id,
+                    );
+
+                /*
+                 * Trigger the browser download.
+                 */
+                downloadPDF(
+                    pdf,
+                    document.title,
+                );
+            } catch (error) {
+                console.error(
+                    "Failed to export PDF:",
+                    error,
+                );
+
+                setExportError(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to export document as PDF.",
+                );
+            } finally {
+                setExportingPDF(false);
+            }
+        };
 
     /*
      * Generate initials for an avatar.
@@ -328,7 +399,7 @@ function DocumentViewer({
         return (
             parts[0][0] +
             parts[
-            parts.length - 1
+                parts.length - 1
             ][0]
         ).toUpperCase();
     };
@@ -435,25 +506,43 @@ function DocumentViewer({
                                     index,
                                 ) => (
                                     <div
+                                        key={
+                                            user.userId
+                                        }
                                         style={{
-                                            position: "relative",
-                                            width: "32px",
-                                            height: "32px",
-                                            borderRadius: "50%",
-                                            border: "2px solid white",
-                                            backgroundColor: "#555",
-                                            color: "white",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            fontSize: "12px",
-                                            fontWeight: "bold",
+                                            position:
+                                                "relative",
+                                            width:
+                                                "32px",
+                                            height:
+                                                "32px",
+                                            borderRadius:
+                                                "50%",
+                                            border:
+                                                "2px solid white",
+                                            backgroundColor:
+                                                "#555",
+                                            color:
+                                                "white",
+                                            display:
+                                                "flex",
+                                            alignItems:
+                                                "center",
+                                            justifyContent:
+                                                "center",
+                                            fontSize:
+                                                "12px",
+                                            fontWeight:
+                                                "bold",
                                             marginLeft:
-                                                index === 0
+                                                index ===
+                                                    0
                                                     ? "0"
                                                     : "-8px",
-                                            cursor: "default",
-                                            boxSizing: "border-box",
+                                            cursor:
+                                                "default",
+                                            boxSizing:
+                                                "border-box",
                                         }}
                                     >
                                         {getInitials(
@@ -461,30 +550,44 @@ function DocumentViewer({
                                         )}
 
                                         {editingUsers.some(
-                                            (editor) =>
+                                            (
+                                                editor,
+                                            ) =>
                                                 editor.userId ===
                                                 user.userId,
                                         ) && (
-                                                <span
-                                                    title={`${user.userName} is editing`}
-                                                    style={{
-                                                        position: "absolute",
-                                                        right: "-4px",
-                                                        bottom: "-4px",
-                                                        width: "16px",
-                                                        height: "16px",
-                                                        borderRadius: "50%",
-                                                        background: "#222",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        fontSize: "9px",
-                                                        border: "1px solid white",
-                                                    }}
-                                                >
-                                                    ✏️
-                                                </span>
-                                            )}
+                                            <span
+                                                title={`${user.userName} is editing`}
+                                                style={{
+                                                    position:
+                                                        "absolute",
+                                                    right:
+                                                        "-4px",
+                                                    bottom:
+                                                        "-4px",
+                                                    width:
+                                                        "16px",
+                                                    height:
+                                                        "16px",
+                                                    borderRadius:
+                                                        "50%",
+                                                    background:
+                                                        "#222",
+                                                    display:
+                                                        "flex",
+                                                    alignItems:
+                                                        "center",
+                                                    justifyContent:
+                                                        "center",
+                                                    fontSize:
+                                                        "9px",
+                                                    border:
+                                                        "1px solid white",
+                                                }}
+                                            >
+                                                ✏️
+                                            </span>
+                                        )}
                                     </div>
                                 ),
                             )}
@@ -498,6 +601,43 @@ function DocumentViewer({
                             online
                         </span>
                     </div>
+
+                    {/* Export PDF */}
+                    <button
+                        type="button"
+                        onClick={
+                            handleExportPDF
+                        }
+                        disabled={
+                            exportingPDF
+                        }
+                        style={{
+                            padding:
+                                "6px 10px",
+                            borderRadius:
+                                "6px",
+                            border:
+                                "1px solid #555",
+                            background:
+                                exportingPDF
+                                    ? "#333"
+                                    : "#1f1f23",
+                            color:
+                                "#fff",
+                            cursor:
+                                exportingPDF
+                                    ? "not-allowed"
+                                    : "pointer",
+                            opacity:
+                                exportingPDF
+                                    ? 0.7
+                                    : 1,
+                        }}
+                    >
+                        {exportingPDF
+                            ? "Exporting..."
+                            : "Export PDF"}
+                    </button>
 
                     {/* Change name */}
                     <button
@@ -524,6 +664,28 @@ function DocumentViewer({
                     </button>
                 </div>
             </div>
+
+            {/* Export error */}
+            {exportError && (
+                <div
+                    style={{
+                        marginBottom:
+                            "12px",
+                        padding:
+                            "8px 12px",
+                        border:
+                            "1px solid #f44336",
+                        borderRadius:
+                            "6px",
+                        color:
+                            "#f44336",
+                        fontSize:
+                            "14px",
+                    }}
+                >
+                    {exportError}
+                </div>
+            )}
 
             <ASTRenderer
                 nodes={
