@@ -6,7 +6,7 @@ import {
 import { Server } from "http";
 import * as Y from "yjs";
 
-import { getYDoc } from "./yjsDocumentManager";
+import { getYDoc, persistYDocToMongoDB } from "./yjsDocumentManager";
 
 const documentClients =
     new Map<string, Set<WebSocket>>();
@@ -203,9 +203,9 @@ export const initializeWebSocketServer = (
 
                                 if (
                                     data.type ===
-                                        "presence:init" &&
+                                    "presence:init" &&
                                     typeof data.userId ===
-                                        "string"
+                                    "string"
                                 ) {
                                     const connection =
                                         connectedClients.get(
@@ -285,8 +285,28 @@ export const initializeWebSocketServer = (
                         Y.applyUpdate(
                             yDoc,
                             update,
-                            socket
+                            socket,
                         );
+
+                        /*
+                         * Persist the latest collaborative
+                         * state to MongoDB.
+                         *
+                         * Yjs remains the real-time source
+                         * of truth, while MongoDB stores the
+                         * latest state for REST and PDF export.
+                         */
+                        persistYDocToMongoDB(
+                            documentId,
+                            yDoc,
+                        ).catch((error) => {
+                            console.error(
+                                `❌ Failed to persist Yjs document ${documentId}:`,
+                                error,
+                            );
+                        });
+
+
                     } catch (error) {
                         console.error(
                             `❌ Failed to process WebSocket message for ${documentId}:`,
