@@ -1,15 +1,18 @@
 import type { ASTNode } from "../types/document";
+import { sanitizeContent } from "../services/security/sanitizer";
 
 export function updateASTNodeContent(
   nodes: ASTNode[],
   nodeId: string,
   content: string,
 ): ASTNode[] {
+  const sanitizedContent = sanitizeContent(content);
+
   return nodes.map((node) => {
     if (node.id === nodeId) {
       return {
         ...node,
-        content,
+        content: sanitizedContent,
       };
     }
 

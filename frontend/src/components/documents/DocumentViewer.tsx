@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { updateASTNodeContent } from "../../utils/astUpdates";
+
 import type {
     DocumentData,
     ASTNode,
@@ -24,7 +26,6 @@ interface DocumentViewerProps {
 
 function DocumentViewer({
     document,
-    onChange,
 }: DocumentViewerProps) {
     /*
      * Keep the same user ID for this
@@ -216,83 +217,57 @@ function DocumentViewer({
         content: string,
     ) => {
         /*
-         * Update React immediately.
-         *
-         * This keeps the local editor
-         * responsive while Yjs handles
-         * collaboration.
+         * Sanitize + update the local AST.
          */
-        setLocalNodes(
-            (currentNodes) => {
-                const updateNodes = (
-                    nodes: ASTNode[],
-                ): ASTNode[] => {
-                    return nodes.map(
-                        (node) => {
-                            if (
-                                node.id === id
-                            ) {
-                                return {
-                                    ...node,
-                                    content,
-                                };
-                            }
-
-                            if (
-                                node.children?.length
-                            ) {
-                                const updatedChildren =
-                                    updateNodes(
-                                        node.children,
-                                    );
-
-                                const childrenChanged =
-                                    updatedChildren.some(
-                                        (
-                                            child,
-                                            index,
-                                        ) =>
-                                            child !==
-                                            node.children?.[
-                                                index
-                                            ],
-                                    );
-
-                                if (
-                                    childrenChanged
-                                ) {
-                                    return {
-                                        ...node,
-                                        children:
-                                            updatedChildren,
-                                    };
-                                }
-                            }
-
-                            return node;
-                        },
-                    );
-                };
-
-                return updateNodes(
-                    currentNodes,
-                );
-            },
+        const sanitizedNodes = updateASTNodeContent(
+            localNodes,
+            id,
+            content,
         );
 
+        setLocalNodes(sanitizedNodes);
+
         /*
-         * Update only the targeted Yjs node.
+         * Find the updated node recursively.
          */
-        if (
-            yDoc &&
-            yNodes
-        ) {
-            const updated =
-                updateYjsNodeContent(
-                    yDoc,
-                    id,
-                    content,
-                );
+        const findUpdatedNode = (
+            nodes: ASTNode[],
+        ): ASTNode | null => {
+            for (const node of nodes) {
+                if (node.id === id) {
+                    return node;
+                }
+
+                if (node.children?.length) {
+                    const found = findUpdatedNode(
+                        node.children,
+                    );
+
+                    if (found) {
+                        return found;
+                    }
+                }
+            }
+
+            return null;
+        };
+
+        const updatedNode = findUpdatedNode(
+            sanitizedNodes,
+        );
+
+        const sanitizedContent =
+            updatedNode?.content ?? "";
+
+        /*
+         * Send the sanitized content to Yjs.
+         */
+        if (yDoc && yNodes) {
+            const updated = updateYjsNodeContent(
+                yDoc,
+                id,
+                sanitizedContent,
+            );
 
             if (!updated) {
                 console.warn(
@@ -300,25 +275,7 @@ function DocumentViewer({
                     id,
                 );
             }
-
-            return;
         }
-
-        /*
-         * REST fallback when Yjs is
-         * not available.
-         */
-        setLocalNodes(
-            (currentNodes) => {
-                onChange({
-                    ...document,
-                    nodes:
-                        currentNodes,
-                });
-
-                return currentNodes;
-            },
-        );
     };
 
     /*
@@ -399,7 +356,7 @@ function DocumentViewer({
         return (
             parts[0][0] +
             parts[
-                parts.length - 1
+            parts.length - 1
             ][0]
         ).toUpperCase();
     };
@@ -556,38 +513,38 @@ function DocumentViewer({
                                                 editor.userId ===
                                                 user.userId,
                                         ) && (
-                                            <span
-                                                title={`${user.userName} is editing`}
-                                                style={{
-                                                    position:
-                                                        "absolute",
-                                                    right:
-                                                        "-4px",
-                                                    bottom:
-                                                        "-4px",
-                                                    width:
-                                                        "16px",
-                                                    height:
-                                                        "16px",
-                                                    borderRadius:
-                                                        "50%",
-                                                    background:
-                                                        "#222",
-                                                    display:
-                                                        "flex",
-                                                    alignItems:
-                                                        "center",
-                                                    justifyContent:
-                                                        "center",
-                                                    fontSize:
-                                                        "9px",
-                                                    border:
-                                                        "1px solid white",
-                                                }}
-                                            >
-                                                ✏️
-                                            </span>
-                                        )}
+                                                <span
+                                                    title={`${user.userName} is editing`}
+                                                    style={{
+                                                        position:
+                                                            "absolute",
+                                                        right:
+                                                            "-4px",
+                                                        bottom:
+                                                            "-4px",
+                                                        width:
+                                                            "16px",
+                                                        height:
+                                                            "16px",
+                                                        borderRadius:
+                                                            "50%",
+                                                        background:
+                                                            "#222",
+                                                        display:
+                                                            "flex",
+                                                        alignItems:
+                                                            "center",
+                                                        justifyContent:
+                                                            "center",
+                                                        fontSize:
+                                                            "9px",
+                                                        border:
+                                                            "1px solid white",
+                                                    }}
+                                                >
+                                                    ✏️
+                                                </span>
+                                            )}
                                     </div>
                                 ),
                             )}
