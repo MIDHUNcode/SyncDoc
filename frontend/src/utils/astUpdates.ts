@@ -8,37 +8,41 @@ export function updateASTNodeContent(
 ): ASTNode[] {
   const sanitizedContent = sanitizeContent(content);
 
-  return nodes.map((node) => {
-    if (node.id === nodeId) {
-      return {
-        ...node,
-        content: sanitizedContent,
-      };
-    }
-
-    if (node.children?.length) {
-      const updatedChildren = updateASTNodeContent(
-        node.children,
-        nodeId,
-        content,
-      );
-
-      // If nothing changed inside this subtree,
-      // preserve the original node reference.
-      const childrenChanged = updatedChildren.some(
-        (child, index) => child !== node.children?.[index],
-      );
-
-      if (childrenChanged) {
+  const updateNodes = (
+    currentNodes: ASTNode[],
+  ): ASTNode[] => {
+    return currentNodes.map((node) => {
+      if (node.id === nodeId) {
         return {
           ...node,
-          children: updatedChildren,
+          content: sanitizedContent,
         };
       }
-    }
 
-    return node;
-  });
+      if (node.children?.length) {
+        const updatedChildren = updateNodes(
+          node.children,
+        );
+
+        const childrenChanged =
+          updatedChildren.some(
+            (child, index) =>
+              child !== node.children?.[index],
+          );
+
+        if (childrenChanged) {
+          return {
+            ...node,
+            children: updatedChildren,
+          };
+        }
+      }
+
+      return node;
+    });
+  };
+
+  return updateNodes(nodes);
 }
 
 export function findASTNode(
