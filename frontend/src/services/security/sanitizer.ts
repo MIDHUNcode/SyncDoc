@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import type { ASTNode } from "../../types/document";
 
 /*
  * SyncDoc security configuration.
@@ -43,4 +44,22 @@ export const sanitizeOptionalContent = (
     }
 
     return sanitizeContent(content);
+};
+
+export const sanitizeASTForRendering = (
+    nodes: ASTNode[],
+): ASTNode[] => {
+    return nodes.map((node) => ({
+        ...node,
+        content:
+            node.content !== undefined
+                ? sanitizeContent(node.content)
+                : undefined,
+        children:
+            node.children?.length
+                ? sanitizeASTForRendering(
+                      node.children,
+                  )
+                : node.children,
+    }));
 };

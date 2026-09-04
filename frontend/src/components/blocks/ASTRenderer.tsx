@@ -5,6 +5,9 @@ import {
 
 import type { ASTNode } from "../../types/document";
 import type { AtomicBlockState } from "../../types/blockState";
+import {
+    sanitizeASTForRendering,
+} from "../../services/security/sanitizer";
 
 import * as Y from "yjs";
 
@@ -64,9 +67,12 @@ function ASTRenderer({
         });
     }, [nodes]);
 
+    const sanitizedNodes =
+        sanitizeASTForRendering(nodes);
+
     return (
         <div>
-            {nodes.map((node) => {
+            {sanitizedNodes.map((node) => {
                 const state =
                     blockStates[node.id] ??
                     createAtomicBlockState(
