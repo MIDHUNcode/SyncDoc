@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 import type { ASTNode } from "../../types/document";
 import type { AtomicBlockState } from "../../types/blockState";
 
+import BlockStateIndicator from "./BlockStateIndicator";
+
+import "./ASTBlock.css";
+
 interface ASTBlockProps {
   node: ASTNode;
   state: AtomicBlockState;
@@ -23,6 +27,8 @@ export default function ASTBlock({
       data-locked={state.isLocked}
       className="syncdoc-ast-block"
     >
+      <BlockStateIndicator state={state} />
+
       {children}
     </div>
   );

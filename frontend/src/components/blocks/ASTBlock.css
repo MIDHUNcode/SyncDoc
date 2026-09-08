@@ -1,0 +1,44 @@
+.syncdoc-ast-block {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px;
+  transition: border-color 0.15s ease;
+}
+
+.syncdoc-ast-block[data-active="true"] {
+  border-color: #999;
+}
+
+.syncdoc-ast-block[data-editing="true"] {
+  border-color: #2563eb;
+}
+
+.syncdoc-ast-block[data-locked="true"] {
+  border-color: #dc2626;
+}
+
+.syncdoc-block-state {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.syncdoc-block-state-active {
+  background: #eee;
+  color: #444;
+}
+
+.syncdoc-block-state-editing {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.syncdoc-block-state-locked {
+  background: #fee2e2;
+  color: #b91c1c;
+}
