@@ -5,6 +5,7 @@ import {
 
 import type { ASTNode } from "../../types/document";
 import type { AtomicBlockState } from "../../types/blockState";
+
 import {
     sanitizeASTForRendering,
 } from "../../services/security/sanitizer";
@@ -67,6 +68,27 @@ function ASTRenderer({
         });
     }, [nodes]);
 
+    const updateBlockState = (
+        nodeId: string,
+        updates: Partial<AtomicBlockState>,
+    ) => {
+        setBlockStates((currentStates) => {
+            const currentState =
+                currentStates[nodeId] ??
+                createAtomicBlockState(
+                    nodeId,
+                );
+
+            return {
+                ...currentStates,
+                [nodeId]: {
+                    ...currentState,
+                    ...updates,
+                },
+            };
+        });
+    };
+
     const sanitizedNodes =
         sanitizeASTForRendering(nodes);
 
@@ -79,6 +101,36 @@ function ASTRenderer({
                         node.id,
                     );
 
+                const handleEditingChange = (
+                    isEditing: boolean,
+                ) => {
+                    updateBlockState(
+                        node.id,
+                        {
+                            isEditing,
+                            isActive:
+                                isEditing
+                                    ? true
+                                    : state.isActive,
+                        },
+                    );
+                };
+
+                const handleLockChange = (
+                    isLocked: boolean,
+                ) => {
+                    updateBlockState(
+                        node.id,
+                        {
+                            isLocked,
+                            isEditing:
+                                isLocked
+                                    ? false
+                                    : state.isEditing,
+                        },
+                    );
+                };
+
                 let block: React.ReactNode;
 
                 switch (node.type) {
@@ -90,6 +142,12 @@ function ASTRenderer({
                                 yDoc={yDoc}
                                 userId={userId}
                                 userName={userName}
+                                onEditingChange={
+                                    handleEditingChange
+                                }
+                                onLockChange={
+                                    handleLockChange
+                                }
                             />
                         );
                         break;
@@ -102,6 +160,12 @@ function ASTRenderer({
                                 yDoc={yDoc}
                                 userId={userId}
                                 userName={userName}
+                                onEditingChange={
+                                    handleEditingChange
+                                }
+                                onLockChange={
+                                    handleLockChange
+                                }
                             />
                         );
                         break;
@@ -114,6 +178,12 @@ function ASTRenderer({
                                 yDoc={yDoc}
                                 userId={userId}
                                 userName={userName}
+                                onEditingChange={
+                                    handleEditingChange
+                                }
+                                onLockChange={
+                                    handleLockChange
+                                }
                             />
                         );
                         break;

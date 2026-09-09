@@ -12,6 +12,14 @@ interface CodeBlockProps {
     yDoc: Y.Doc | null;
     userId: string;
     userName: string;
+
+    onEditingChange?: (
+        isEditing: boolean,
+    ) => void;
+
+    onLockChange?: (
+        isLocked: boolean,
+    ) => void;
 }
 
 function CodeBlock({
@@ -20,6 +28,8 @@ function CodeBlock({
     yDoc,
     userId,
     userName,
+    onEditingChange,
+    onLockChange,
 }: CodeBlockProps) {
     return (
         <EditableBlock
@@ -31,6 +41,12 @@ function CodeBlock({
             yDoc={yDoc}
             userId={userId}
             userName={userName}
+            onEditingChange={
+                onEditingChange
+            }
+            onLockChange={
+                onLockChange
+            }
         />
     );
 }

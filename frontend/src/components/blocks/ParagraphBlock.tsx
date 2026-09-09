@@ -12,6 +12,14 @@ interface ParagraphBlockProps {
     yDoc: Y.Doc | null;
     userId: string;
     userName: string;
+
+    onEditingChange?: (
+        isEditing: boolean,
+    ) => void;
+
+    onLockChange?: (
+        isLocked: boolean,
+    ) => void;
 }
 
 function ParagraphBlock({
@@ -20,6 +28,8 @@ function ParagraphBlock({
     yDoc,
     userId,
     userName,
+    onEditingChange,
+    onLockChange,
 }: ParagraphBlockProps) {
     return (
         <EditableBlock
@@ -31,6 +41,12 @@ function ParagraphBlock({
             yDoc={yDoc}
             userId={userId}
             userName={userName}
+            onEditingChange={
+                onEditingChange
+            }
+            onLockChange={
+                onLockChange
+            }
         />
     );
 }

@@ -12,6 +12,14 @@ interface HeadingBlockProps {
     yDoc: Y.Doc | null;
     userId: string;
     userName: string;
+
+    onEditingChange?: (
+        isEditing: boolean,
+    ) => void;
+
+    onLockChange?: (
+        isLocked: boolean,
+    ) => void;
 }
 
 function HeadingBlock({
@@ -20,6 +28,8 @@ function HeadingBlock({
     yDoc,
     userId,
     userName,
+    onEditingChange,
+    onLockChange,
 }: HeadingBlockProps) {
     return (
         <EditableBlock
@@ -31,6 +41,12 @@ function HeadingBlock({
             yDoc={yDoc}
             userId={userId}
             userName={userName}
+            onEditingChange={
+                onEditingChange
+            }
+            onLockChange={
+                onLockChange
+            }
         />
     );
 }

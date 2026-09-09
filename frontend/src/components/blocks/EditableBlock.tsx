@@ -21,6 +21,14 @@ interface EditableBlockProps {
     userId: string;
     userName: string;
 
+    onEditingChange?: (
+        isEditing: boolean,
+    ) => void;
+
+    onLockChange?: (
+        isLocked: boolean,
+    ) => void;
+
     children?: ReactNode;
 }
 
@@ -31,6 +39,8 @@ function EditableBlock({
     yDoc,
     userId,
     userName,
+    onEditingChange,
+    onLockChange,
     children,
 }: EditableBlockProps) {
     const [lockedBy, setLockedBy] =
@@ -45,6 +55,8 @@ function EditableBlock({
     useEffect(() => {
         if (!yDoc) {
             setLockedBy(null);
+            onLockChange?.(false);
+            onEditingChange?.(false);
             return;
         }
 
@@ -62,13 +74,14 @@ function EditableBlock({
             if (
                 lock &&
                 Date.now() >=
-                lock.expiresAt
+                    lock.expiresAt
             ) {
                 cleanupExpiredLocks(
                     yDoc,
                 );
 
                 setLockedBy(null);
+                onLockChange?.(false);
 
                 /*
                  * If our own lock expired,
@@ -78,6 +91,9 @@ function EditableBlock({
                     lock.userId === userId
                 ) {
                     setIsEditing(false);
+                    onEditingChange?.(
+                        false,
+                    );
                 }
 
                 return;
@@ -91,13 +107,10 @@ function EditableBlock({
                 lock.userId !== userId
             ) {
                 setLockedBy(lock);
-
-                /*
-                 * Make sure we don't remain
-                 * in editing mode if another
-                 * user owns the lock.
-                 */
                 setIsEditing(false);
+
+                onLockChange?.(true);
+                onEditingChange?.(false);
 
                 return;
             }
@@ -107,6 +120,7 @@ function EditableBlock({
              * this block.
              */
             setLockedBy(null);
+            onLockChange?.(false);
         };
 
         updateLock();
@@ -134,6 +148,8 @@ function EditableBlock({
         yDoc,
         nodeId,
         userId,
+        onEditingChange,
+        onLockChange,
     ]);
 
     /*
@@ -167,6 +183,9 @@ function EditableBlock({
          */
         if (acquired) {
             setIsEditing(true);
+
+            onEditingChange?.(true);
+            onLockChange?.(false);
         }
     };
 
@@ -200,6 +219,14 @@ function EditableBlock({
                  */
                 if (!refreshed) {
                     setIsEditing(false);
+
+                    onEditingChange?.(
+                        false,
+                    );
+
+                    onLockChange?.(
+                        false,
+                    );
                 }
             }, 3000);
 
@@ -213,6 +240,8 @@ function EditableBlock({
         nodeId,
         userId,
         isEditing,
+        onEditingChange,
+        onLockChange,
     ]);
 
     /*
@@ -231,6 +260,9 @@ function EditableBlock({
         );
 
         setIsEditing(false);
+
+        onEditingChange?.(false);
+        onLockChange?.(false);
     };
 
     /*
@@ -280,16 +312,25 @@ function EditableBlock({
             {lockedBy && (
                 <div
                     style={{
-                        display: "inline-flex",
-                        alignItems: "center",
+                        display:
+                            "inline-flex",
+                        alignItems:
+                            "center",
                         gap: "6px",
-                        marginBottom: "6px",
-                        padding: "5px 9px",
-                        borderRadius: "6px",
-                        background: "#2a2520",
-                        color: "#ffcc66",
-                        fontSize: "12px",
-                        fontWeight: "500",
+                        marginBottom:
+                            "6px",
+                        padding:
+                            "5px 9px",
+                        borderRadius:
+                            "6px",
+                        background:
+                            "#2a2520",
+                        color:
+                            "#ffcc66",
+                        fontSize:
+                            "12px",
+                        fontWeight:
+                            "500",
                     }}
                 >
                     <span>✏️</span>
@@ -346,8 +387,7 @@ function EditableBlock({
                         isLockedByOtherUser
                             ? "not-allowed"
                             : "text",
-                    outline:
-                        "none",
+                    outline: "none",
                 }}
             />
 
