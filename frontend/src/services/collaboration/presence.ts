@@ -1,9 +1,15 @@
 import * as Y from "yjs";
 
+export interface PresenceCursor {
+    blockId: string;
+    offset: number;
+}
+
 export interface PresenceUser {
     userId: string;
     userName: string;
     timestamp: number;
+    cursor: PresenceCursor | null;
 }
 
 const PRESENCE_TIMEOUT = 5000;
@@ -28,6 +34,7 @@ export function addPresenceUser(
         userId,
         userName,
         timestamp: Date.now(),
+        cursor: null,
     });
 }
 
@@ -59,6 +66,59 @@ export function updatePresenceUser(
     });
 }
 
+export function updatePresenceCursor(
+    yDoc: Y.Doc,
+    userId: string,
+    blockId: string,
+    offset: number,
+): void {
+    const presence =
+        getPresence(yDoc);
+
+    const existing =
+        presence.get(userId);
+
+    if (!existing) {
+        return;
+    }
+
+    const safeOffset =
+        Math.max(
+            0,
+            Math.floor(offset),
+        );
+
+    presence.set(userId, {
+        ...existing,
+        timestamp: Date.now(),
+        cursor: {
+            blockId,
+            offset: safeOffset,
+        },
+    });
+}
+
+export function clearPresenceCursor(
+    yDoc: Y.Doc,
+    userId: string,
+): void {
+    const presence =
+        getPresence(yDoc);
+
+    const existing =
+        presence.get(userId);
+
+    if (!existing) {
+        return;
+    }
+
+    presence.set(userId, {
+        ...existing,
+        timestamp: Date.now(),
+        cursor: null,
+    });
+}
+
 export function removePresenceUser(
     yDoc: Y.Doc,
     userId: string,
@@ -76,11 +136,6 @@ export function removePresenceUser(
 /*
  * Remove presence entries that
  * have not been refreshed recently.
- *
- * This handles cases where a browser
- * crashes, loses network connection,
- * or is force-closed without a normal
- * WebSocket close event.
  */
 export function pruneStalePresence(
     yDoc: Y.Doc,

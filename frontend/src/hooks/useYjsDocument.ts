@@ -23,13 +23,9 @@ import {
     removePresenceUser,
     updatePresenceUser,
     pruneStalePresence,
+    type PresenceUser,
 } from "../services/collaboration/presence";
 
-interface PresenceUser {
-    userId: string;
-    userName: string;
-    timestamp: number;
-}
 
 export interface EditingUser {
     userId: string;
