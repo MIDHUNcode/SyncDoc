@@ -11,6 +11,11 @@ import {
     type BlockLock,
 } from "../../services/collaboration/blockLock";
 
+import {
+    updatePresenceCursor,
+    clearPresenceCursor,
+} from "../../services/collaboration/presence";
+
 interface EditableBlockProps {
     value: string;
     onChange: (value: string) => void;
@@ -74,7 +79,7 @@ function EditableBlock({
             if (
                 lock &&
                 Date.now() >=
-                    lock.expiresAt
+                lock.expiresAt
             ) {
                 cleanupExpiredLocks(
                     yDoc,
@@ -152,18 +157,35 @@ function EditableBlock({
         onLockChange,
     ]);
 
-    /*
-     * Acquire the lock when the
-     * textarea receives focus.
-     */
-    const handleFocus = () => {
+    const publishCursorPosition = (
+        element: HTMLTextAreaElement,
+    ) => {
         if (!yDoc) {
             return;
         }
 
-        /*
-         * Another user owns this block.
-         */
+        const offset =
+            element.selectionStart ?? 0;
+
+        updatePresenceCursor(
+            yDoc,
+            userId,
+            nodeId,
+            offset,
+        );
+    };
+
+    /*
+     * Acquire the lock when the
+     * textarea receives focus.
+     */
+    const handleFocus = (
+        event: React.FocusEvent<HTMLTextAreaElement>,
+    ) => {
+        if (!yDoc) {
+            return;
+        }
+
         if (lockedBy) {
             return;
         }
@@ -176,16 +198,15 @@ function EditableBlock({
                 userName,
             );
 
-        /*
-         * Only enter editing mode
-         * if the lock was successfully
-         * acquired.
-         */
         if (acquired) {
             setIsEditing(true);
 
             onEditingChange?.(true);
             onLockChange?.(false);
+
+            publishCursorPosition(
+                event.currentTarget,
+            );
         }
     };
 
@@ -259,6 +280,11 @@ function EditableBlock({
             userId,
         );
 
+        clearPresenceCursor(
+            yDoc,
+            userId,
+        );
+
         setIsEditing(false);
 
         onEditingChange?.(false);
@@ -278,6 +304,11 @@ function EditableBlock({
             releaseBlockLock(
                 yDoc,
                 nodeId,
+                userId,
+            );
+
+            clearPresenceCursor(
+                yDoc,
                 userId,
             );
         };
@@ -351,6 +382,16 @@ function EditableBlock({
                 }
                 onFocus={handleFocus}
                 onBlur={handleBlur}
+                onSelect={(event) => {
+                    if (
+                        !isLockedByOtherUser &&
+                        isEditing
+                    ) {
+                        publishCursorPosition(
+                            event.currentTarget,
+                        );
+                    }
+                }}
                 onChange={(event) => {
                     if (
                         !isLockedByOtherUser &&
@@ -358,6 +399,10 @@ function EditableBlock({
                     ) {
                         onChange(
                             event.target.value,
+                        );
+
+                        publishCursorPosition(
+                            event.currentTarget,
                         );
                     }
                 }}
