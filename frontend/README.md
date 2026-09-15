@@ -4,7 +4,7 @@
 
 The frontend allows users to browse, edit, and collaboratively synchronize structured documents in real time using **Yjs, WebSocket, and CRDT-based synchronization**.
 
-The frontend also integrates with the Week 3 transformation and PDF export pipeline, allowing users to export the latest synchronized document state as a PDF.
+The frontend also integrates with the document transformation and PDF export pipeline and includes security mechanisms using **DOMPurify** to sanitize user-controlled document content.
 
 ---
 
@@ -15,9 +15,10 @@ The frontend also integrates with the Week 3 transformation and PDF export pipel
 | Week 1 — AST Foundation                     | ✅ Complete |
 | Week 2 — Yjs + CRDT Collaboration           | ✅ Complete |
 | Week 3 — Transformation, State & PDF Export | ✅ Complete |
+| Week 4 — Security & Advanced Collaboration  | ✅ Complete |
 
-**Current Phase:** Week 3 — Transformation & PDF Export
-**Frontend Status:** ✅ Week 1 + Week 2 + Week 3 Complete
+**Current Phase:** Week 4 — Security & Advanced Collaboration
+**Frontend Status:** ✅ Week 1 + Week 2 + Week 3 + Week 4 Complete
 
 ---
 
@@ -53,6 +54,7 @@ The frontend supports:
 * List Item
 * Nested children
 * Recursive AST rendering
+* Sanitized content rendering
 
 Example:
 
@@ -94,6 +96,8 @@ User edits block
        ↓
 Editable Block
        ↓
+Sanitize Content
+       ↓
 AST / Editor State
        ↓
 Yjs Document
@@ -115,7 +119,7 @@ React UI
 
 # 🧠 Editor State Management
 
-Week 3 introduced dedicated editor-state utilities to manage document editing independently from the React rendering layer.
+The frontend contains dedicated editor-state utilities to manage document editing independently from the React rendering layer.
 
 The editor state tracks:
 
@@ -143,13 +147,13 @@ Editor State
 AST / Yjs State
 ```
 
-This provides a cleaner foundation for targeted document editing and future rich-text functionality.
+This provides a cleaner foundation for targeted document editing and collaborative state synchronization.
 
 ---
 
 # 🎯 Cursor & Selection Handling
 
-The frontend contains utilities for managing cursor and selection information.
+The frontend manages cursor and selection information at the block level.
 
 Implemented:
 
@@ -160,8 +164,10 @@ Implemented:
 * Cursor validation
 * Selection normalization
 * Block-aware cursor state
-
-The state model allows the editor to identify exactly where the user is editing rather than treating the entire document as one editable region.
+* Collaborative cursor synchronization
+* Collaborative selection synchronization
+* Selection clearing
+* Cursor cleanup
 
 Example:
 
@@ -176,13 +182,13 @@ Document
 └── Code
 ```
 
+Cursor and selection information can also be synchronized through the collaborative presence state.
+
 ---
 
 # ⚛️ Atomic Block State
 
-Week 3 introduced atomic block state management.
-
-Each editable block can maintain its own editing state.
+Each editable block maintains its own editing state.
 
 Example:
 
@@ -206,6 +212,7 @@ Implemented:
 * Cursor state
 * Selection state
 * Editing state
+* Lock state
 * Block-local state updates
 * Atomic block state validation
 
@@ -215,7 +222,7 @@ This keeps block editing localized and reduces unnecessary updates to unrelated 
 
 # 🔄 Targeted AST Updates
 
-The frontend now supports targeted AST updates instead of unnecessarily rebuilding or replacing unrelated document state.
+The frontend supports targeted AST updates instead of unnecessarily rebuilding unrelated document state.
 
 Example:
 
@@ -248,14 +255,13 @@ Implemented:
 * Immutable state updates
 * Missing-node handling
 * Update validation
-
-This provides a foundation for efficient block-level editing.
+* Sanitized content updates
 
 ---
 
 # 🔄 Yjs Integration
 
-The frontend contains a dedicated Yjs client layer responsible for connecting the editor to the collaborative document.
+The frontend contains a dedicated Yjs collaboration layer.
 
 Implemented:
 
@@ -269,7 +275,7 @@ Implemented:
 * Reconnection handling
 * Collaborative state integration
 
-The Yjs document acts as the real-time source of collaborative document state.
+The Yjs document acts as the real-time collaborative state.
 
 ---
 
@@ -323,11 +329,15 @@ Implemented:
 * Collaborative document state
 * User presence
 * Block-level locking
+* Block editing state
+* Cursor synchronization
+* Selection synchronization
 * Reconnection handling
 * Connection status tracking
 * Remote AST updates
+* Presence cleanup
 
-The collaboration architecture is:
+Architecture:
 
 ```text
                     ┌──────────────────┐
@@ -366,12 +376,13 @@ Implemented:
 * User name management
 * Presence initialization
 * Presence updates
-* Presence cleanup
 * Online user tracking
-* Presence avatars
-* User initials
+* Presence cleanup
 * Connection-aware presence
 * Session-based user identity
+* Cursor information
+* Selection information
+* Stale presence removal
 
 Example:
 
@@ -412,6 +423,9 @@ Implemented:
 * Expired lock cleanup
 * Editing protection
 * Lock-aware editable blocks
+* Editing indicators
+* Locked-block indicators
+* Block state indicators
 
 Lock lifecycle:
 
@@ -428,6 +442,33 @@ Release
    ↓
 Available
 ```
+
+---
+
+# 🟢 Block State Indicators
+
+Week 4 introduced visual block state indicators.
+
+A block can represent states such as:
+
+```text
+Active
+Editing
+Locked
+Available
+```
+
+Example:
+
+```text
+Paragraph
+   │
+   ├── Active
+   ├── Editing
+   └── Locked
+```
+
+These indicators make the collaborative editing state easier to understand.
 
 ---
 
@@ -480,9 +521,82 @@ This allows clients to recover from temporary connection interruptions without r
 
 ---
 
+# 🛡️ Security & Content Sanitization
+
+Week 4 introduced frontend content sanitization using **DOMPurify**.
+
+The goal is to prevent unsafe user-controlled content from being rendered or propagated through the editor.
+
+Security architecture:
+
+```text
+User Content
+     ↓
+Sanitization
+     ↓
+AST Update
+     ↓
+Yjs State
+     ↓
+Collaborative Sync
+     ↓
+Sanitized Rendering
+```
+
+The sanitization layer is centralized in:
+
+```text
+services/security/sanitizer.ts
+```
+
+Implemented:
+
+* DOMPurify integration
+* Content sanitization
+* Optional content sanitization
+* Recursive AST sanitization
+* Sanitization before rendering
+* Sanitization during AST content updates
+* XSS/security test coverage
+* Safe text rendering
+
+Structural AST fields such as node IDs and node types are not treated as HTML content.
+
+---
+
+# 🚫 XSS Protection
+
+SyncDoc treats document content as user-controlled data.
+
+Unsafe HTML-like input is sanitized before being used by the editor.
+
+Example:
+
+```text
+User Input
+    ↓
+Potentially Unsafe Content
+    ↓
+DOMPurify
+    ↓
+Sanitized Content
+    ↓
+AST
+    ↓
+Yjs
+    ↓
+React Rendering
+```
+
+The frontend does not depend on unsafe HTML injection for AST rendering.
+
+Security tests validate that unsafe content is removed or neutralized appropriately.
+
+---
+
 # 🧩 Collaborative State Architecture
 
-The frontend collaborative state is managed through a dedicated hook:
+The frontend collaborative state is managed through the Yjs document hook and collaboration services.
 
 ```text
 React Component
@@ -494,71 +608,21 @@ useYjsDocument()
       ├── Yjs Nodes
       ├── AST Nodes
       ├── Presence
+      ├── Cursor State
+      ├── Selection State
       ├── Editing Users
+      ├── Block Locks
       ├── Connection Status
       └── Collaboration Updates
 ```
 
-This keeps React components focused on rendering and user interaction while collaboration logic remains inside the Yjs service layer.
-
----
-
-# 🏗️ Frontend Architecture
-
-The current frontend architecture is:
-
-```text
-SyncDoc Frontend
-│
-├── Document Browser
-│       │
-│       └── Select Document
-│
-├── Document Viewer
-│       │
-│       ├── Connection Status
-│       ├── Presence
-│       ├── Editing Indicators
-│       └── AST Editor
-│
-├── Editor State
-│       │
-│       ├── Cursor State
-│       ├── Selection State
-│       ├── Atomic Block State
-│       └── Targeted AST Updates
-│
-├── API Layer
-│       │
-│       └── REST Requests
-│
-├── Collaboration Layer
-│       │
-│       ├── Yjs Client
-│       ├── Yjs ↔ AST
-│       ├── Presence
-│       └── Block Locks
-│
-├── Export Layer
-│       │
-│       └── PDF Download
-│
-└── AST Renderer
-        │
-        ├── Heading
-        ├── Paragraph
-        ├── Code
-        ├── List
-        └── List Item
-```
+This keeps React components focused on rendering and user interaction while collaboration logic remains in the service layer.
 
 ---
 
 # 📤 PDF Export Integration
 
-Week 3 introduced frontend integration with the backend PDF export pipeline.
-
-The frontend provides an export action that requests the current document from the backend.
+The frontend integrates with the backend PDF export pipeline.
 
 Export flow:
 
@@ -589,52 +653,58 @@ Browser Download
 
 The export endpoint is:
 
-```http
+```text
 GET /api/documents/:id/export/pdf
 ```
-
-The frontend uses the document ID to request the PDF.
 
 The exported PDF reflects the latest synchronized and persisted document state.
 
 ---
 
-# 🔗 PDF Export Workflow
+# 🏗️ Frontend Architecture
 
-The complete Week 3 export workflow is:
+The overall frontend architecture is:
 
 ```text
-React Editor
-     │
-     ▼
-Yjs Document
-     │
-     ▼
-Collaborative Updates
-     │
-     ▼
-Backend Persistence
-     │
-     ▼
-MongoDB AST
-     │
-     ▼
-AST Transformer
-     │
-     ▼
-ExportDocument
-     │
-     ▼
-PDF Generator
-     │
-     ▼
-PDF Response
-     │
-     ▼
-Browser Download
+SyncDoc Frontend
+│
+├── Document Browser
+│
+├── Document Viewer
+│   ├── Connection Status
+│   ├── Presence
+│   ├── Cursor State
+│   ├── Selection State
+│   ├── Editing Indicators
+│   └── AST Editor
+│
+├── Editor State
+│   ├── Cursor
+│   ├── Selection
+│   ├── Atomic Block State
+│   └── Targeted AST Updates
+│
+├── Security Layer
+│   └── DOMPurify Sanitization
+│
+├── API Layer
+│
+├── Collaboration Layer
+│   ├── Yjs
+│   ├── AST ↔ Yjs
+│   ├── Presence
+│   └── Block Locks
+│
+├── Export Layer
+│   └── PDF Download
+│
+└── AST Renderer
+    ├── Heading
+    ├── Paragraph
+    ├── Code
+    ├── List
+    └── List Item
 ```
-
-This ensures that the exported document is generated from the current persisted document state rather than an outdated frontend copy.
 
 ---
 
@@ -675,63 +745,6 @@ Each supported node is rendered according to its type.
 
 ---
 
-# ⚛️ State Management
-
-The frontend state architecture evolved across the three development phases.
-
-### Week 1
-
-Local React state was used for AST rendering and editing.
-
-```text
-REST API
-   ↓
-React State
-   ↓
-AST Renderer
-   ↓
-Editable Blocks
-```
-
-### Week 2
-
-Yjs became the collaborative source of document state.
-
-```text
-Yjs Document
-     ↓
-Collaborative State
-     ↓
-React Hook
-     ↓
-AST Renderer
-```
-
-### Week 3
-
-Dedicated editor state utilities were introduced for precise block editing.
-
-```text
-Yjs Document
-     ↓
-AST Nodes
-     ↓
-Editor State
-     │
-     ├── Active Block
-     ├── Cursor
-     ├── Selection
-     └── Atomic Block State
-     ↓
-Targeted AST Update
-     ↓
-React UI
-```
-
-This separation makes the editor easier to extend and maintain.
-
----
-
 # 🧪 Automated Testing
 
 The frontend uses **Vitest** for automated testing.
@@ -744,29 +757,33 @@ Current frontend test suite:
 ✓ Atomic Block State
 ✓ Editor State
 ✓ Yjs Updates
+✓ Presence
+✓ Security / Sanitization
 ```
 
 Current result:
 
 ```text
-Test Files: 5 passed
-Tests:      44 passed
+Test Files: 7 passed
+Tests:      74 passed
 ```
 
 ### Test Breakdown
 
-| Test Suite         |  Tests |
-| ------------------ | -----: |
-| AST Updates        |      8 |
-| Cursor Utilities   |      4 |
-| Atomic Block State |     10 |
-| Editor State       |     15 |
-| Yjs Updates        |      7 |
-| **Total**          | **44** |
+| Test Area                |  Tests |
+| ------------------------ | -----: |
+| AST Updates              |      8 |
+| Cursor Utilities         |      4 |
+| Atomic Block State       |     10 |
+| Editor State             |     15 |
+| Yjs Updates              |      7 |
+| Presence / Collaboration |     20 |
+| Security / Sanitization  |     10 |
+| **Total**                | **74** |
 
-Run the frontend tests with:
+Run the frontend tests:
 
-```bash
+```text
 npm test
 ```
 
@@ -774,13 +791,13 @@ npm test
 
 # 🧪 TypeScript Validation
 
-The frontend TypeScript project is also validated using:
+The frontend TypeScript project is validated using:
 
-```bash
+```text
 npx tsc --noEmit
 ```
 
-The current Week 3 implementation passes TypeScript validation successfully.
+The current Week 4 implementation passes TypeScript validation successfully.
 
 ---
 
@@ -792,22 +809,32 @@ Tested scenarios:
 
 * Open the same document in two browser tabs
 * Both clients show Connected
-* Online user count updates correctly
+* Online user count updates
 * Edit a block in Tab A
 * Verify the change appears in Tab B
 * Edit another block in Tab B
 * Verify the change appears in Tab A
 * Verify presence indicators
 * Verify editing indicators
-* Verify block-level collaboration
-* Verify connection lifecycle
+* Verify block-level locking
+* Verify cursor synchronization
+* Verify selection synchronization
+* Verify selection clearing
+* Verify stale presence cleanup
+* Verify reconnection behavior
 
 Example:
 
 ```text
 Tab A
   │
-  │ Edit Heading
+  │ Edit Paragraph
+  ▼
+Cursor / Selection
+  │
+  ▼
+Presence State
+  │
   ▼
 Yjs Update
   │
@@ -818,14 +845,43 @@ WebSocket
 Tab B
   │
   ▼
-Updated Heading
+Updated Collaboration State
 ```
+
+---
+
+# 🛡️ Manual Security Testing
+
+Week 4 security behavior was validated through automated and manual testing.
+
+Tested:
+
+```text
+Unsafe Content
+      ↓
+Sanitization
+      ↓
+AST
+      ↓
+Yjs
+      ↓
+React Rendering
+```
+
+Validated areas:
+
+* Content sanitization
+* Recursive AST sanitization
+* Sanitization during AST updates
+* Sanitized rendering
+* XSS-related test cases
+* Safe block rendering
 
 ---
 
 # 📤 Manual PDF Export Testing
 
-The Week 3 export workflow has also been validated manually.
+The PDF export workflow has been validated manually.
 
 Tested flow:
 
@@ -845,20 +901,22 @@ Open PDF
 Verify edited content
 ```
 
-The exported PDF now reflects the latest synchronized document changes.
+The exported PDF reflects the latest synchronized document changes.
 
 ---
 
 # 📁 Project Structure
 
-The frontend currently follows a component/service architecture:
+The frontend follows a component/service/state architecture.
 
 ```text
 src/
 │
 ├── components/
 │   ├── blocks/
+│   │   ├── ASTBlock.tsx
 │   │   ├── ASTRenderer.tsx
+│   │   ├── BlockStateIndicator.tsx
 │   │   ├── EditableBlock.tsx
 │   │   └── ...
 │   │
@@ -870,46 +928,49 @@ src/
 │
 ├── services/
 │   ├── collaboration/
-│   │   ├── yjsClient.ts
-│   │   ├── yjsToAst.ts
+│   │   ├── blockLock.ts
 │   │   ├── presence.ts
-│   │   └── blockLock.ts
-│   │
-│   ├── documents/
+│   │   ├── yjsToAst.ts
+│   │   ├── yjsUpdates.ts
 │   │   └── ...
+│   │
+│   ├── security/
+│   │   └── sanitizer.ts
 │   │
 │   └── export/
 │       └── ...
 │
 ├── state/
+│   ├── cursorUtils.ts
 │   ├── editorState.ts
-│   └── atomicBlockState.ts
+│   └── ...
 │
 ├── utils/
-│   └── cursorUtils.ts
+│   └── astUpdates.ts
 │
 ├── tests/
 │   ├── astUpdates.test.ts
 │   ├── cursorUtils.test.ts
 │   ├── atomicBlockState.test.ts
 │   ├── editorState.test.ts
-│   └── yjsUpdates.test.ts
+│   ├── yjsUpdates.test.ts
+│   ├── presence.test.ts
+│   └── sanitizer.test.ts
 │
 ├── types/
-│   └── document.ts
+│   ├── document.ts
+│   └── editor.ts
 │
 ├── App.tsx
 └── main.tsx
 ```
-
-The exact structure may evolve as the project continues.
 
 ---
 
 # 🛠️ Technology Stack
 
 | Technology      | Purpose                            |
-| --------------- | ---------------------------------- |
+| --------------- | ----------------------------------- |
 | React           | Frontend UI                        |
 | TypeScript      | Type safety                        |
 | Vite            | Frontend tooling                   |
@@ -919,6 +980,7 @@ The exact structure may evolve as the project continues.
 | Yjs             | Collaborative shared state         |
 | WebSocket       | Real-time communication            |
 | CRDT            | Conflict-free synchronization      |
+| DOMPurify       | Content sanitization               |
 | Session Storage | Client identity persistence        |
 | Vitest          | Automated testing                  |
 
@@ -995,53 +1057,11 @@ Week 2 transformed the editor into a collaborative real-time application.
 
 ---
 
-# 🔄 Week 2 Collaboration Flow
-
-The final Week 2 collaboration flow is:
-
-```text
-             User A
-                │
-                ▼
-        ┌───────────────┐
-        │ React Editor  │
-        └───────┬───────┘
-                │
-               Yjs
-                │
-                ▼
-        ┌───────────────┐
-        │   WebSocket   │
-        │     Client    │
-        └───────┬───────┘
-                │
-                ▼
-        ┌───────────────┐
-        │ SyncDoc       │
-        │ WebSocket     │
-        │ Server        │
-        └───────┬───────┘
-                │
-               Yjs
-                │
-       ┌────────┴────────┐
-       ▼                 ▼
-    User B             User C
-       │                 │
-       ▼                 ▼
-    Yjs Client        Yjs Client
-       │                 │
-       ▼                 ▼
-   React Editor      React Editor
-```
-
----
-
 # 📅 Week 3 — Transformation, State & PDF Export
 
 **Status: ✅ Complete**
 
-Week 3 expanded SyncDoc beyond basic collaboration by introducing dedicated editor-state management and integration with the document transformation and PDF export pipeline.
+Week 3 introduced dedicated editor-state management and PDF export integration.
 
 ### Completed
 
@@ -1090,48 +1110,272 @@ Week 3 expanded SyncDoc beyond basic collaboration by introducing dedicated edit
 
 ---
 
-# 📊 Week 3 Architecture
+# 🛡️ Week 4 — Security & Advanced Collaboration
 
-The final Week 3 frontend flow is:
+**Status: ✅ Complete**
+
+Week 4 focused on securing the editor and improving collaborative editing awareness.
+
+### 4.1 — DOMPurify Security Architecture
+
+Implemented a centralized content sanitization architecture.
+
+* Identified user-controlled content
+* Added centralized sanitizer
+* Sanitized AST content
+* Preserved AST structural fields
+* Added rendering-time sanitization
+
+### 4.2 — DOMPurify Configuration
+
+Implemented DOMPurify configuration for document content.
+
+* DOMPurify integration
+* Sanitization configuration
+* Safe content handling
+* Optional content sanitization
+
+### 4.3 — Sanitize Saved AST Block Content
+
+AST content is sanitized during targeted content updates.
 
 ```text
-                React Editor
-                     │
-                     ▼
-              Editor State
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-          ▼                     ▼
-       Cursor              Selection
-          │                     │
-          └──────────┬──────────┘
-                     ▼
-              Atomic Block
-                     │
-                     ▼
-              Targeted AST
-                     │
-                     ▼
-                  Yjs
-                     │
-                     ▼
-               WebSocket
-                     │
-                     ▼
-              SyncDoc Backend
-                     │
-                     ▼
-            Persistent AST
-                     │
-                     ▼
-          Transformation Engine
-                     │
-                     ▼
-               PDF Generator
-                     │
-                     ▼
-              PDF Download
+User Input
+    ↓
+sanitizeContent()
+    ↓
+AST Update
+    ↓
+Yjs
+```
+
+### 4.4 — Sanitize Before Rendering
+
+The renderer sanitizes AST content before displaying it.
+
+```text
+AST
+ ↓
+sanitizeASTForRendering()
+ ↓
+React Renderer
+ ↓
+User Interface
+```
+
+### 4.5 — XSS & Security Testing
+
+Added security-focused test cases covering:
+
+* Unsafe HTML content
+* Script-like content
+* Content sanitization
+* Optional content
+* Recursive AST sanitization
+* Safe rendering behavior
+
+### 4.6 — Block State Indicators
+
+Added visual state indicators for collaborative blocks.
+
+Supported states include:
+
+* Active
+* Editing
+* Locked
+
+### 4.7 — Collaborative Block Editing & Lock States
+
+Improved block-level editing protection.
+
+Implemented:
+
+* Lock acquisition
+* Lock refresh
+* Lock release
+* Lock expiration
+* Read-only locked blocks
+* Editing indicators
+* Lock indicators
+* Two-client lock validation
+
+### 4.8 — Cursor Synchronization
+
+Implemented collaborative cursor state.
+
+```text
+User Cursor
+    ↓
+Presence State
+    ↓
+Yjs
+    ↓
+Other Clients
+```
+
+Implemented:
+
+* Cursor block ID
+* Cursor offset
+* Cursor publishing
+* Cursor updates
+* Cursor clearing
+* Cursor heartbeat preservation
+
+### 4.9 — Selection Synchronization
+
+Implemented collaborative selection state.
+
+Selection contains:
+
+```text
+Start
+ ├── blockId
+ └── offset
+
+End
+ ├── blockId
+ └── offset
+```
+
+Implemented:
+
+* Selection start
+* Selection end
+* Selection publishing
+* Selection clearing
+* Cursor updates during selection
+* Collaborative selection validation
+
+### 4.10 — Multi-Client Cursor Validation
+
+Validated collaboration using multiple clients.
+
+Tested:
+
+* Cursor synchronization
+* Selection synchronization
+* Cursor updates
+* Selection clearing
+* User presence
+* Block editing
+* Block locking
+* Reconnection
+
+### 4.11 — Presence & Cursor Cleanup
+
+Implemented cleanup for collaborative presence state.
+
+Implemented:
+
+* Explicit presence removal
+* Stale presence cleanup
+* Cursor cleanup
+* Selection cleanup
+* Disconnect cleanup
+* Lock cleanup
+
+### 4.12 — Final Security & Collaboration Testing
+
+Final Week 4 validation included:
+
+```text
+TypeScript
+    ↓
+Automated Tests
+    ↓
+Security Tests
+    ↓
+Two-Client Collaboration
+    ↓
+Cursor Validation
+    ↓
+Selection Validation
+    ↓
+Block Lock Validation
+    ↓
+Presence Cleanup
+    ↓
+PDF Regression Test
+```
+
+Final frontend result:
+
+```text
+7 Test Files Passed
+74 Tests Passed
+TypeScript Validation Passed
+Manual Collaboration Validation Passed
+Security Validation Passed
+PDF Regression Validation Passed
+```
+
+---
+
+# 📊 Week 4 Architecture
+
+The final Week 4 frontend flow is:
+
+```text
+                     React Editor
+                          │
+          ┌───────────────┼────────────────┐
+          │               │                │
+          ▼               ▼                ▼
+      Editor State    Security Layer   Presence State
+          │               │                │
+          │           DOMPurify             │
+          │               │                │
+          ▼               ▼                ▼
+      Atomic Block      Sanitized        Cursor
+         State            Content       Selection
+          │                 │                │
+          └─────────────────┼────────────────┘
+                            ▼
+                       Targeted AST
+                            │
+                            ▼
+                           Yjs
+                            │
+                            ▼
+                        WebSocket
+                            │
+                            ▼
+                    SyncDoc Backend
+                            │
+                ┌───────────┴───────────┐
+                ▼                       ▼
+           Persistence            Collaboration
+                │
+                ▼
+             MongoDB
+                │
+                ▼
+        Transformation Engine
+                │
+                ▼
+          PDF Generator
+```
+
+---
+
+# 🧪 Overall Test Status
+
+The frontend currently has:
+
+```text
+7 Test Files
+74 Tests
+0 Failing Tests
+```
+
+The broader SyncDoc project has:
+
+```text
+Frontend → 74 tests
+Backend  → 37 tests
+────────────────────
+Total    → 111 tests
 ```
 
 ---
@@ -1151,6 +1395,10 @@ Week 3
 Transformation + Editor State + PDF Export
     │
     ▼
+Week 4
+Security + Advanced Collaboration
+    │
+    ▼
 Future
 Rich Editing + Scalability + Additional Export Formats
 ```
@@ -1158,10 +1406,11 @@ Rich Editing + Scalability + Additional Export Formats
 ### Current Progress
 
 | Phase                                | Status |
-| ------------------------------------ | ------ |
+| ------------------------------------- | -----: |
 | Week 1 — AST Foundation              | ✅ 100% |
 | Week 2 — Collaboration               | ✅ 100% |
 | Week 3 — Transformation & PDF Export | ✅ 100% |
+| Week 4 — Security & Collaboration    | ✅ 100% |
 
 ---
 
@@ -1169,38 +1418,38 @@ Rich Editing + Scalability + Additional Export Formats
 
 Install dependencies:
 
-```bash
+```text
 cd frontend
 npm install
 ```
 
 Start the development server:
 
-```bash
+```text
 npm run dev
 ```
 
 Build for production:
 
-```bash
+```text
 npm run build
 ```
 
 Run linting:
 
-```bash
+```text
 npm run lint
 ```
 
 Run tests:
 
-```bash
+```text
 npm test
 ```
 
 Run TypeScript validation:
 
-```bash
+```text
 npx tsc --noEmit
 ```
 
@@ -1254,18 +1503,26 @@ WebSocket
 +
 Real-Time Collaboration
 +
+Presence
++
+Cursor & Selection Synchronization
++
+Block-Level Locking
++
+DOMPurify Security
++
 Editor State
 +
 PDF Export
 ```
 
-The primary goal is to build a **structural collaborative editor** where multiple users can work on the same document in real time while preserving its AST structure.
+The primary goal is to build a **secure structural collaborative editor** where multiple users can work on the same document in real time while preserving its AST structure.
 
 ---
 
 # 📄 Project Summary
 
-The SyncDoc frontend has evolved through three major development phases.
+The SyncDoc frontend has evolved through four major development phases.
 
 ### Week 1
 
@@ -1279,16 +1536,24 @@ The SyncDoc frontend has evolved through three major development phases.
 
 > **Editor State → Cursor/Selection → Atomic Blocks → Targeted AST Updates → Yjs → PDF Export**
 
+### Week 4
+
+> **DOMPurify → Sanitization → XSS Protection → Block States → Cursor Sync → Selection Sync → Presence Cleanup → Final Validation**
+
 The frontend now provides:
 
 * A structural AST editor
 * Real-time multi-user collaboration
-* Presence tracking
+* User presence tracking
 * Block-level editing locks
-* Cursor and selection state management
+* Block state indicators
+* Cursor synchronization
+* Selection synchronization
 * Atomic block state
 * Targeted AST updates
 * Yjs synchronization
+* DOMPurify-based content sanitization
+* XSS/security testing
 * PDF export integration
 * Automated frontend testing
 
@@ -1305,8 +1570,11 @@ Week 2 — Yjs + CRDT Collaboration
 
 Week 3 — Transformation + Editor State + PDF Export
 ████████████████████ 100%
+
+Week 4 — Security + Advanced Collaboration
+████████████████████ 100%
 ```
 
-**Current milestone:** Week 3 is complete.
+**Current milestone: Week 4 is complete.**
 
-The SyncDoc frontend now provides the complete editor and collaboration foundation required for future improvements such as rich-text editing, advanced selection awareness, offline editing, performance optimization, and additional export formats.
+The SyncDoc frontend now provides the **complete AST editing, real-time collaboration, security, cursor/selection synchronization, block locking, presence, and PDF export foundation** required for the next development phase.

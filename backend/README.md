@@ -10,27 +10,32 @@ The backend provides:
 * Yjs collaborative document management
 * WebSocket synchronization
 * CRDT-based real-time collaboration
-* User presence management
-* Block-level locking
+* User presence support
+* Block-level locking support
 * AST transformation
 * Export document generation
 * PDF generation
 * PDF export API
 * Collaborative AST integration
 * Targeted AST block updates
+* Collaboration lifecycle management
+* Persistent collaborative document state
 
 ---
 
-## 🚧 Project Status
+# 🚧 Project Status
 
-| Phase                                | Status     |
-| ------------------------------------ | ---------- |
-| Week 1 — AST Foundation              | ✅ Complete |
-| Week 2 — Yjs + WebSocket + CRDT      | ✅ Complete |
-| Week 3 — Transformation & PDF Export | ✅ Complete |
+| Phase                                     | Status     |
+| ----------------------------------------- | ---------- |
+| Week 1 — AST Foundation                   | ✅ Complete |
+| Week 2 — Yjs + WebSocket + CRDT           | ✅ Complete |
+| Week 3 — Transformation & PDF Export      | ✅ Complete |
+| Week 4 — Security & Collaboration Support | ✅ Complete |
 
-**Current Phase:** Week 3 — Transformation & PDF Export
-**Backend Status:** ✅ Week 1 + Week 2 + Week 3 Complete
+**Current Phase:** Week 4 — Security & Collaboration Support
+**Backend Status:** ✅ Week 1 + Week 2 + Week 3 + Week 4 Complete
+
+> **Note:** Week 4 security and advanced collaboration features are split between the frontend and backend. DOMPurify-based content sanitization, cursor/selection UI state, and block-state indicators are frontend responsibilities, while the backend continues to provide the collaborative Yjs/WebSocket infrastructure and document persistence required by them.
 
 ---
 
@@ -51,6 +56,8 @@ The backend provides:
 * Document CRUD REST APIs
 * Vitest automated tests
 
+---
+
 ## Week 2 — Real-Time Collaboration
 
 * Yjs document management
@@ -59,9 +66,9 @@ The backend provides:
 * AST → Yjs conversion
 * Yjs → AST conversion
 * Multi-client synchronization
-* User presence
+* User presence support
 * Presence cleanup
-* Block-level locking
+* Block-level locking support
 * Lock acquisition
 * Lock release
 * Lock refresh
@@ -70,6 +77,8 @@ The backend provides:
 * Reconnection support
 * Collaboration error handling
 * Connection lifecycle management
+
+---
 
 ## Week 3 — Transformation & PDF Export
 
@@ -95,11 +104,30 @@ The backend provides:
 * Yjs → AST integration for export
 * Collaborative document export
 * Cursor/context state design
-* Atomic block state
+* Atomic block state support
 * AST block integration
 * Targeted AST updates
-* Selection and block state handling
+* Selection and block state support
 * Final transformation testing
+
+---
+
+# 🛡️ Week 4 — Security & Collaboration Support
+
+Week 4 focused primarily on strengthening the collaborative editor and its security architecture.
+
+The backend continues to provide the infrastructure required for:
+
+* Collaborative Yjs state
+* WebSocket synchronization
+* Presence state
+* Block-level locking
+* Persistent AST documents
+* Collaborative document export
+* Connection lifecycle management
+* Stale collaboration cleanup
+
+The frontend adds the user-facing security and collaboration features on top of this backend infrastructure.
 
 ---
 
@@ -128,7 +156,7 @@ Document
 
 The core AST structure is:
 
-```ts
+```text
 interface ASTNode {
   id: string;
   type: ASTNodeType;
@@ -193,7 +221,7 @@ http://localhost:5000/api
 ## Export API
 
 | Method | Endpoint                    | Purpose                |
-| ------ | --------------------------- | ---------------------- |
+| ------ | ---------------------------- | ---------------------- |
 | GET    | `/documents/:id/export/pdf` | Export document as PDF |
 
 ## Health API
@@ -337,6 +365,8 @@ Implemented:
 * User name synchronization
 * Connection-aware presence
 
+The frontend uses this collaborative presence state to display online collaborators.
+
 Example:
 
 ```text
@@ -432,11 +462,9 @@ The collaboration layer also handles:
 
 ---
 
-# 🧩 Week 3 — Transformation Engine
+# 🧩 Transformation Engine
 
-Week 3 introduced a dedicated transformation layer for converting the internal AST into an export-oriented document structure.
-
-The transformation layer separates the application's internal AST from the PDF representation.
+The transformation engine converts the internal AST into an export-oriented document structure.
 
 ```text
 ASTNode
@@ -462,7 +490,7 @@ This separation allows PDF rendering to operate independently of the internal AS
 
 The transformation engine uses an export-specific representation.
 
-```ts
+```text
 interface ExportNode {
   type:
     | "heading"
@@ -526,35 +554,39 @@ Supported transformations include:
 
 # 🧠 Block Management & Transformation State
 
-Week 3 also introduced state-oriented block management for structured editing.
+The backend collaboration architecture supports structured block-level editing.
 
-The system provides a foundation for tracking:
+The collaborative state provides the foundation for tracking:
+
+* Block identity
+* Editing ownership
+* Lock state
+* Collaborative document state
+* AST block updates
+
+The frontend additionally manages:
 
 * Active block
 * Cursor position
 * Selection boundaries
 * Atomic block state
-* Block identity
-* Targeted AST updates
 
 Conceptually:
 
 ```text
-Editor State
-     │
-     ├── Active Block
-     │
-     ├── Cursor Position
-     │
-     ├── Selection Bounds
-     │
-     └── Atomic Block State
+Collaborative State
+       │
+       ├── Block Identity
+       ├── Lock State
+       └── Presence
               │
               ▼
-        Targeted AST Update
+        Frontend Editor State
+              │
+              ├── Cursor
+              ├── Selection
+              └── Atomic Block State
 ```
-
-This allows structural changes to be applied to specific AST blocks instead of unnecessarily replacing the complete document.
 
 ---
 
@@ -573,9 +605,9 @@ Document AST
      └── List
 ```
 
-The transformation and collaboration layers can operate on the affected structural node.
+The collaborative and transformation layers can operate on the affected structural node.
 
-This approach supports the project's goal of efficient structural editing and provides a foundation for larger collaborative documents.
+This supports efficient structural editing and provides a foundation for larger collaborative documents.
 
 ---
 
@@ -641,7 +673,7 @@ The rendering layer handles document structure while keeping transformation logi
 
 The backend provides:
 
-```http
+```text
 GET /api/documents/:id/export/pdf
 ```
 
@@ -673,13 +705,82 @@ The endpoint generates and downloads the current document as a PDF.
 
 ---
 
-# 🧪 Week 3 Testing
+# 🛡️ Security Architecture
 
-Week 3 expanded automated testing around transformation and PDF generation.
+Security is divided between the backend and frontend.
 
-Tests cover:
+### Backend Responsibilities
 
-### AST Transformation
+```text
+Request
+   ↓
+Express
+   ↓
+Validation
+   ↓
+AST Structure
+   ↓
+Persistence
+```
+
+The backend protects the structural integrity of documents through:
+
+* AST validation
+* Node type validation
+* Node ID validation
+* Duplicate ID detection
+* Parent-child validation
+* Recursive validation
+* MongoDB/Mongoose validation
+* Helmet
+* CORS configuration
+* Environment configuration
+
+### Frontend Responsibilities
+
+The frontend additionally handles user-controlled content sanitization using **DOMPurify** before rendering and during targeted content updates.
+
+```text
+User Content
+     ↓
+Frontend Sanitization
+     ↓
+Collaborative State
+     ↓
+Backend
+     ↓
+Persistence
+```
+
+This separation keeps HTML/content sanitization concerns in the frontend while maintaining structural validation on the backend.
+
+---
+
+# 🧪 Backend Testing
+
+The backend uses **Vitest** for automated testing.
+
+Testing covers:
+
+### AST Validation
+
+* Valid AST documents
+* Invalid node types
+* Missing IDs
+* Duplicate IDs
+* Invalid child relationships
+* Nested AST validation
+
+### Collaboration
+
+* AST → Yjs conversion
+* Yjs → AST conversion
+* Collaborative document state
+* Presence support
+* Block locking
+* Connection lifecycle
+
+### Transformation
 
 * Heading transformation
 * Paragraph transformation
@@ -687,56 +788,59 @@ Tests cover:
 * List transformation
 * Nested list transformation
 * Complete AST transformation
-* Unsupported node handling
-* Empty content handling
 
-### PDF Generation
+### PDF
 
-* Empty document generation
-* Empty paragraph
-* Empty code block
-* Empty list
-* Heading without content
-* Multiple heading levels
-* Multiple node types
-* Nested lists
-* Deeply nested lists
-* Complex mixed AST documents
-* Unsupported export node types
-* PDF generation failures
+* PDF document generation
+* Heading rendering
+* Paragraph rendering
+* Code rendering
+* List rendering
+* Nested list rendering
+* Empty document handling
+* Complex document generation
+* PDF export controller
 
-### Validation
+---
 
-TypeScript validation:
+# 📊 Current Backend Test Status
 
-```bash
-npx tsc --noEmit
-```
-
-Test suite:
-
-```bash
-npm test
-```
-
-Current backend validation:
+The Week 3 backend test suite contains:
 
 ```text
-✓ TypeScript compilation
+5 Test Files
+37 Tests
+0 Failing Tests
+```
+
+Validated areas include:
+
+```text
 ✓ AST validation
 ✓ AST → Yjs
 ✓ Yjs → AST
 ✓ AST transformation
 ✓ PDF generation
 ✓ PDF export
-✓ Collaborative synchronization
+```
+
+Run tests:
+
+```text
+npm test
+```
+
+TypeScript validation:
+
+```text
+npx tsc --noEmit
 ```
 
 ---
 
 # 🏗️ Complete Backend Architecture
 
-The complete Week 3 backend architecture is:
+The complete backend architecture is:
 
 ```text
                          Client
@@ -821,16 +925,13 @@ backend/
 │   │   │
 │   │   └── pdf/
 │   │       ├── pdfGenerator.ts
-│   │       └── renderers/
-│   │           ├── headingRenderer.ts
-│   │           ├── paragraphRenderer.ts
-│   │           ├── codeRenderer.ts
-│   │           └── listRenderer.ts
+│   │       └── pdfLayout.ts
 │   │
 │   ├── tests/
 │   │   ├── astValidator.test.ts
 │   │   ├── astToYjs.test.ts
 │   │   ├── astTransformer.test.ts
+│   │   ├── exportController.test.ts
 │   │   └── pdfGenerator.test.ts
 │   │
 │   ├── types/
@@ -851,33 +952,33 @@ backend/
 # 🛠️ Technology Stack
 
 | Technology | Purpose                     |
-| ---------- | --------------------------- |
+| ---------- | ---------------------------- |
 | Node.js    | Runtime                     |
 | Express    | REST API                    |
 | TypeScript | Type safety                 |
 | MongoDB    | Persistent document storage |
-| Mongoose   | MongoDB ODM                 |
+| Mongoose   | MongoDB ODM                  |
 | Yjs        | Collaborative shared state  |
 | WebSocket  | Real-time synchronization   |
 | CRDT       | Conflict-free collaboration |
-| PDFKit     | PDF generation              |
-| Helmet     | Security                    |
-| CORS       | Cross-origin requests       |
-| dotenv     | Environment configuration   |
-| Vitest     | Automated testing           |
+| PDFKit     | PDF generation               |
+| Helmet     | Security                     |
+| CORS       | Cross-origin requests        |
+| dotenv     | Environment configuration    |
+| Vitest     | Automated testing             |
 
 ---
 
 # 📦 Installation
 
-```bash
+```text
 cd backend
 npm install
 ```
 
 Create `.env`:
 
-```env
+```text
 PORT=5000
 MONGODB_URI=your_mongodb_connection_string
 ```
@@ -890,7 +991,7 @@ Do not commit `.env` to Git.
 
 Start the backend development server:
 
-```bash
+```text
 npm run dev
 ```
 
@@ -910,7 +1011,7 @@ ws://localhost:5000/collab?documentId=<DOCUMENT_ID>
 
 # 🏗️ Production Build
 
-```bash
+```text
 npm run build
 npm start
 ```
@@ -921,13 +1022,13 @@ npm start
 
 Run the complete backend test suite:
 
-```bash
+```text
 npm test
 ```
 
 Run TypeScript validation:
 
-```bash
+```text
 npx tsc --noEmit
 ```
 
@@ -937,7 +1038,7 @@ The backend should pass both TypeScript validation and the automated test suite 
 
 # 🗓️ Week 1 Progress
 
-### AST Foundation
+## AST Foundation
 
 Completed:
 
@@ -958,7 +1059,7 @@ Completed:
 
 # 🗓️ Week 2 Progress
 
-### Yjs & Collaboration
+## Yjs & Collaboration
 
 Completed:
 
@@ -990,7 +1091,7 @@ Completed:
 
 # 🗓️ Week 3 Progress
 
-### Transformation Engine
+## Transformation Engine
 
 Completed:
 
@@ -1006,7 +1107,7 @@ Completed:
 * Transformation validation
 * Transformation tests
 
-### Block Management
+## Block Management
 
 Completed:
 
@@ -1019,7 +1120,7 @@ Completed:
 * Targeted AST updates
 * Block-level state handling
 
-### Yjs Integration
+## Yjs Integration
 
 Completed:
 
@@ -1029,7 +1130,7 @@ Completed:
 * Document-specific synchronization
 * Exporting current collaborative document state
 
-### PDF
+## PDF
 
 Completed:
 
@@ -1050,6 +1151,50 @@ Completed:
 
 ---
 
+# 🗓️ Week 4 Progress
+
+## Security & Collaboration Support
+
+Week 4 focused on strengthening the overall SyncDoc collaboration architecture.
+
+Backend-supported areas:
+
+* Collaborative Yjs state
+* WebSocket synchronization
+* Presence lifecycle
+* Block-level locking
+* Connection cleanup
+* Stale collaboration cleanup
+* Persistent document synchronization
+* Collaborative PDF export
+
+Frontend-supported areas built on top of the backend:
+
+* DOMPurify sanitization
+* XSS testing
+* Block state indicators
+* Cursor synchronization
+* Selection synchronization
+* Multi-client cursor validation
+* Presence and cursor cleanup
+
+Final project validation confirmed:
+
+```text
+Frontend
+74 tests passed
+
+Backend
+37 tests passed
+
+Overall
+111 tests passed
+```
+
+**Week 4: ✅ Complete**
+
+---
+
 # 🗺️ Roadmap
 
 ```text
@@ -1066,7 +1211,11 @@ Transformation + Block Management + PDF Export
         │
         ▼
 Week 4
-Security + Performance
+Security + Collaboration Validation
+        │
+        ▼
+Future
+Performance + Scalability + Production Hardening
 ```
 
 ---
@@ -1082,11 +1231,14 @@ Week 2 — Yjs + CRDT Collaboration
 
 Week 3 — Transformation + PDF Export
 ████████████████████ 100%
+
+Week 4 — Security + Collaboration Support
+████████████████████ 100%
 ```
 
 ### Overall
 
-**SyncDoc Backend: 100% complete through Week 3**
+**SyncDoc Backend: ✅ Complete through Week 4**
 
 ---
 
@@ -1174,7 +1326,7 @@ Transformation
 Export
 ```
 
-This provides a clean foundation for future document formats, richer editing capabilities, and scalable collaboration.
+This provides a clean foundation for secure, collaborative structured document editing and future scalability.
 
 ---
 
@@ -1187,11 +1339,10 @@ This provides a clean foundation for future document formats, richer editing cap
 ║ Week 1 — AST Foundation             ✅ 100% ║
 ║ Week 2 — Collaboration              ✅ 100% ║
 ║ Week 3 — Transformation & PDF       ✅ 100% ║
+║ Week 4 — Security & Collaboration   ✅ 100% ║
 ╠══════════════════════════════════════════════╣
-║ Current Milestone: Week 3 Complete           ║
+║ Current Milestone: Week 4 Complete           ║
 ╚══════════════════════════════════════════════╝
 ```
 
-**Current milestone:** Full collaborative AST + transformation + PDF export pipeline is functional.
-
-**Next milestone:** Week 4 security, performance optimization, scalability, and production hardening.
+**Current milestone:** SyncDoc Backend is complete through **Week 4**, providing the AST persistence, real-time Yjs collaboration, presence/locking infrastructure, transformation engine, and PDF export pipeline required by the SyncDoc application.

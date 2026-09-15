@@ -8,15 +8,16 @@ Unlike traditional plain-text editors, SyncDoc represents documents as an **Abst
 
 # 🚧 Project Status
 
-**Current Phase:** Week 3 — Transformation & PDF Export
-**Status:** 🚀 Week 1, Week 2 & Week 3 Complete
+**Current Phase:** Week 4 — Security & Collaboration Validation
+**Status:** 🚀 Week 1, Week 2, Week 3 & Week 4 Complete
 
 ### Progress
 
 ```text
-Week 1 — AST Foundation              ✅ Complete
-Week 2 — Yjs + CRDT Collaboration    ✅ Complete
-Week 3 — Transformation & PDF       ✅ Complete
+Week 1 — AST Foundation                    ✅ Complete
+Week 2 — Yjs + CRDT Collaboration          ✅ Complete
+Week 3 — Transformation & PDF Export       ✅ Complete
+Week 4 — Security & Collaboration          ✅ Complete
 ```
 
 ---
@@ -33,6 +34,7 @@ SyncDoc is built around a structural document model:
                              ▼
                     ┌──────────────────┐
                     │   Yjs Client     │
+                    │  + Editor State  │
                     └────────┬─────────┘
                              │
                        WebSocket
@@ -61,6 +63,27 @@ SyncDoc is built around a structural document model:
                                   └──────────────┘
 ```
 
+Security and collaboration state are handled separately from the persistent document AST:
+
+```text
+                 SyncDoc
+                    │
+        ┌───────────┴───────────┐
+        ▼                       ▼
+ Document Structure       Collaboration State
+        │                       │
+        ▼                       ├── Presence
+       AST                      ├── Cursor
+        │                       ├── Selection
+        │                       └── Block Locks
+        │
+        ▼
+ Transformation
+        │
+        ▼
+      PDF
+```
+
 ---
 
 # 📦 Tech Stack
@@ -73,6 +96,7 @@ SyncDoc is built around a structural document model:
 * ESLint
 * Yjs
 * WebSocket
+* DOMPurify
 
 ## Backend
 
@@ -96,8 +120,18 @@ SyncDoc is built around a structural document model:
 * CRDT-based synchronization
 * WebSocket communication
 * User presence
+* Cursor synchronization
+* Selection synchronization
 * Block-level locking
 * Reconnection handling
+* Stale presence cleanup
+
+## Security
+
+* DOMPurify
+* AST content sanitization
+* Safe rendering
+* XSS protection testing
 
 ---
 
@@ -370,8 +404,6 @@ Implemented:
 
 The transformation and PDF pipeline is covered by automated backend tests.
 
-Backend tests currently include:
-
 ```text
 AST Validator Tests        8
 AST → Yjs Tests            5
@@ -488,7 +520,7 @@ Supported functionality includes:
 * Selection state updates
 * Cursor utility tests
 
-These utilities provide the foundation for more advanced rich-text editing in future versions.
+These utilities provide the foundation for collaborative cursor and selection synchronization implemented in Week 4.
 
 ---
 
@@ -677,7 +709,7 @@ Test Files: 5 passed
 Tests:      44 passed
 ```
 
-### Total Automated Tests
+### Week 3 Total
 
 ```text
 Backend Tests       37
@@ -686,25 +718,410 @@ Frontend Tests      44
 Total               81
 ```
 
-### Manual Collaboration Testing
+---
+
+# 📅 Week 4 — Security & Collaboration Validation
+
+**Status: ✅ Complete**
+
+Week 4 focused on securing document content, improving block-level collaboration, synchronizing cursor and selection state, and validating multi-client collaboration.
+
+---
+
+## 4.1 — DOMPurify Security Architecture
+
+**Status: ✅ Complete**
+
+Implemented a centralized content sanitization architecture using **DOMPurify**.
+
+The security flow is:
+
+```text
+User Input
+    │
+    ▼
+Sanitization
+    │
+    ▼
+AST Update
+    │
+    ▼
+Yjs Collaboration
+    │
+    ▼
+Safe Rendering
+```
+
+Implemented:
+
+* Centralized sanitizer service
+* Content-only sanitization
+* Structural AST fields preserved
+* Sanitization before AST updates
+* Sanitization before rendering
+* Code content treated as literal text
+* Safe rendering without `dangerouslySetInnerHTML`
+
+---
+
+## 4.2 — DOMPurify Configuration
+
+**Status: ✅ Complete**
+
+Configured DOMPurify for SyncDoc content.
+
+The current configuration does not allow HTML tags or attributes in normal document content.
+
+Implemented:
+
+* DOMPurify installation
+* Sanitization configuration
+* `sanitizeContent()`
+* `sanitizeOptionalContent()`
+* Recursive AST sanitization
+* Rendering sanitization
+
+---
+
+## 4.3 — Sanitize Saved AST Block Content
+
+**Status: ✅ Complete**
+
+AST content is sanitized before targeted block updates.
+
+```text
+User edits block
+       │
+       ▼
+sanitizeContent()
+       │
+       ▼
+AST update
+       │
+       ▼
+Yjs update
+       │
+       ▼
+Collaborators
+```
+
+Implemented:
+
+* Sanitized paragraph content
+* Sanitized heading content
+* Sanitized code content
+* Recursive AST update sanitization
+* Centralized sanitization logic
+
+---
+
+## 4.4 — Sanitize Before Rendering
+
+**Status: ✅ Complete**
+
+SyncDoc also sanitizes AST content at the rendering boundary.
+
+Implemented:
+
+* Recursive rendering sanitization
+* Safe AST rendering
+* No raw HTML injection
+* No `dangerouslySetInnerHTML`
+* Defense-in-depth sanitization
+
+---
+
+## 4.5 — XSS & Security Testing
+
+**Status: ✅ Complete**
+
+Security tests were added to verify unsafe content handling.
+
+Test coverage includes:
+
+* Script injection attempts
+* HTML tag sanitization
+* Attribute sanitization
+* Optional content handling
+* Recursive AST sanitization
+* Safe rendering behavior
+
+Frontend sanitizer tests:
+
+```text
+10 tests
+```
+
+---
+
+## 4.6 — Block State Indicator
+
+**Status: ✅ Complete**
+
+Implemented visual block state tracking.
+
+Block state includes:
+
+```text
+AtomicBlockState
+├── blockId
+├── isActive
+├── isEditing
+├── isLocked
+├── cursorOffset
+└── selection
+```
+
+Implemented:
+
+* Active block state
+* Editing state
+* Locked state
+* Cursor state
+* Selection state
+* Block state indicator UI
+
+---
+
+## 4.7 — Collaborative Block Editing & Lock States
+
+**Status: ✅ Complete**
+
+Integrated block-level locks with editable AST blocks.
+
+Implemented:
+
+* Lock acquisition on editing
+* Lock refresh
+* Lock release
+* Lock expiration
+* Read-only state for locked blocks
+* Editing user indicators
+* Lock-aware textarea behavior
+* Multi-client block lock validation
+
+Example:
+
+```text
+User A → Editing Paragraph
+User B → Paragraph Locked
+
+User B → Editing Code Block
+User A → Code Block Locked
+```
+
+Different users can continue working on different blocks.
+
+---
+
+## 4.8 — Cursor Synchronization
+
+**Status: ✅ Complete**
+
+Implemented collaborative cursor position synchronization through the presence layer.
+
+Cursor state includes:
+
+```text
+PresenceCursor
+├── blockId
+└── offset
+```
+
+Implemented:
+
+* Cursor position tracking
+* Cursor offset synchronization
+* Cursor updates on focus
+* Cursor updates on selection changes
+* Cursor updates during editing
+* Cursor cleanup on blur
+* Cursor cleanup on lock failure
+* Cursor cleanup on unmount
+
+---
+
+## 4.9 — Selection Synchronization
+
+**Status: ✅ Complete**
+
+Implemented collaborative text selection synchronization.
+
+Selection state includes:
+
+```text
+PresenceSelection
+├── start
+│   ├── blockId
+│   └── offset
+└── end
+    ├── blockId
+    └── offset
+```
+
+Implemented:
+
+* Selection start synchronization
+* Selection end synchronization
+* Cursor synchronization with selection end
+* Selection updates
+* Selection clearing
+* Cursor preservation when selection is cleared
+* Independent selections between users
+* Selection state preservation during presence updates
+
+---
+
+## 4.10 — Multi-client Cursor Validation
+
+**Status: ✅ Complete**
+
+Validated cursor and selection behavior using multiple SyncDoc clients.
+
+Tested:
+
+* Two-client connection
+* Multi-user presence
+* Cursor updates
+* Cursor movement
+* Selection synchronization
+* Selection clearing
+* Independent user states
+* Collaborative editing
+* Block lock interaction
+
+Validated collaboration flow:
+
+```text
+Client A
+   │
+   ▼
+Yjs Presence
+   │
+   ▼
+WebSocket
+   │
+   ▼
+Yjs Server
+   │
+   ▼
+WebSocket
+   │
+   ▼
+Yjs Presence
+   │
+   ▼
+Client B
+```
+
+---
+
+## 4.11 — Presence & Cursor Cleanup
+
+**Status: ✅ Complete**
+
+Implemented and tested cleanup of stale collaboration state.
+
+Implemented:
+
+* Explicit presence removal
+* Stale presence detection
+* Stale user cleanup
+* Cursor cleanup with user removal
+* Selection cleanup with user removal
+* Active user preservation
+* Reconnection cleanup
+* Presence lifecycle validation
+
+The cleanup flow is:
+
+```text
+User Disconnects
+       │
+       ▼
+Presence Removed
+       │
+       ├── Cursor Removed
+       │
+       └── Selection Removed
+```
+
+Stale users are also removed when their presence timestamp exceeds the configured presence lifetime.
+
+---
+
+## 4.12 — Final Security & Collaboration Testing
+
+**Status: ✅ Complete**
+
+Week 4 was validated through TypeScript checks, automated tests, security validation, and multi-client collaboration testing.
+
+### Frontend TypeScript
+
+```text
+npx tsc --noEmit
+```
+
+Result:
+
+```text
+✅ No TypeScript errors
+```
+
+### Frontend Tests
+
+Current frontend test suite:
+
+```text
+Test Files: 7 passed
+Tests:      74 passed
+```
+
+Test coverage includes:
+
+```text
+✓ AST Updates
+✓ Atomic Block State
+✓ Editor State
+✓ Cursor Utilities
+✓ Presence
+✓ Sanitizer
+✓ Yjs Updates
+```
+
+### Security Validation
 
 Validated:
 
-* Two browser tabs connected to the same document
-* Both clients show `Connected`
-* Online user count updates correctly
-* Tab A → Tab B editing synchronization
-* Tab B → Tab A editing synchronization
-* Presence indicators
-* User avatars
+* Unsafe script content handling
+* HTML sanitization
+* Attribute sanitization
+* Code block safety
+* Safe rendering
+* No raw HTML injection
+
+### Collaboration Validation
+
+Validated:
+
+* Two-client collaboration
+* Presence synchronization
+* Cursor synchronization
+* Selection synchronization
+* Block locking
 * Editing indicators
-* Block-level editing state
+* Presence cleanup
 * Reconnection behavior
-* Document loading
-* Paragraph editing
-* Collaborative synchronization
-* PDF export
-* Edited content appearing in downloaded PDFs
+* Multi-client document editing
+
+### PDF Regression
+
+Validated:
+
+* Collaborative edits
+* Persistence
+* PDF generation
+* Latest document content in exported PDFs
 
 ---
 
@@ -782,6 +1199,17 @@ User A edits Block
       User B
 ```
 
+Presence state is synchronized separately:
+
+```text
+User
+ │
+ ├── Presence
+ ├── Cursor
+ ├── Selection
+ └── Editing Lock
+```
+
 This architecture reduces destructive overwrites and provides a foundation for scalable collaborative editing.
 
 ---
@@ -808,6 +1236,40 @@ Locks include:
 * Expiration
 * Cleanup
 * Multi-client safety
+
+---
+
+# 🛡️ Security Model
+
+SyncDoc sanitizes user-controlled document content before it is persisted or synchronized and again before rendering.
+
+```text
+User Content
+      │
+      ▼
+DOMPurify
+      │
+      ▼
+Sanitized AST
+      │
+      ▼
+Yjs / Persistence
+      │
+      ▼
+Rendering Sanitization
+      │
+      ▼
+React UI
+```
+
+Security principles:
+
+* Sanitize content fields
+* Preserve AST structure
+* Treat code as literal content
+* Avoid raw HTML injection
+* Avoid `dangerouslySetInnerHTML`
+* Validate security behavior with automated tests
 
 ---
 
@@ -873,40 +1335,38 @@ Tests:      37 passed
 ✓ Atomic Block State
 ✓ Editor State
 ✓ Cursor Utilities
+✓ Presence
+✓ Sanitizer
 ✓ Yjs Updates
 ```
 
 ```text
-Test Files: 5 passed
-Tests:      44 passed
+Test Files: 7 passed
+Tests:      74 passed
 ```
 
 ## Overall
 
 ```text
 Backend       37 tests
-Frontend      44 tests
+Frontend      74 tests
 ──────────────────────
-Total         81 tests
+Total        111 tests
 ```
 
-Run backend tests:
+### TypeScript Validation
+
+Backend:
 
 ```bash
 cd backend
-npm test
+npx tsc --noEmit
 ```
 
-Run frontend tests:
+Frontend:
 
 ```bash
 cd frontend
-npm test
-```
-
-Run TypeScript validation:
-
-```bash
 npx tsc --noEmit
 ```
 
@@ -922,6 +1382,7 @@ The SyncDoc frontend is built using:
 * ESLint
 * Yjs
 * WebSocket
+* DOMPurify
 
 Install dependencies:
 
@@ -1022,7 +1483,18 @@ SyncDoc/
 │       │
 │       ├── services/
 │       │   ├── collaboration/
+│       │   │   ├── blockLock.ts
+│       │   │   ├── presence.ts
+│       │   │   └── yjsClient.ts
+│       │   │
+│       │   ├── security/
+│       │   │   └── sanitizer.ts
+│       │   │
 │       │   └── exportService.ts
+│       │
+│       ├── state/
+│       │
+│       ├── utils/
 │       │
 │       ├── tests/
 │       ├── types/
@@ -1061,55 +1533,80 @@ SyncDoc/
 
 **Status: ✅ Complete**
 
-* Export architecture ✅
-* AST → ExportDocument transformation ✅
-* PDF structure generation ✅
-* Transformation tests ✅
-* Cursor/selection state design ✅
-* Atomic block state ✅
-* AST block integration ✅
-* Cursor & selection handling ✅
-* Targeted AST updates ✅
-* Yjs integration ✅
-* PDF export integration ✅
-* Final testing ✅
+* Export architecture
+* AST → ExportDocument transformation
+* PDF structure generation
+* Transformation tests
+* Cursor/selection state design
+* Atomic block state
+* AST block integration
+* Cursor & selection handling
+* Targeted AST updates
+* Yjs integration
+* PDF export integration
+* Final testing
+
+## Week 4 — Security & Collaboration Validation
+
+**Status: ✅ Complete**
+
+* DOMPurify security architecture
+* DOMPurify configuration
+* AST content sanitization
+* Safe rendering
+* XSS/security testing
+* Block state indicators
+* Collaborative block editing locks
+* Cursor synchronization
+* Selection synchronization
+* Multi-client cursor validation
+* Presence and cursor cleanup
+* Stale presence cleanup
+* Final security testing
+* Final collaboration testing
+* Reconnection validation
+* PDF export regression testing
 
 ---
 
-# 🎯 Week 3 Achievement
+# 🎯 Week 4 Achievement
 
-Week 3 successfully established the complete transformation and export pipeline:
+Week 4 successfully strengthened SyncDoc with security and advanced collaboration features:
 
 ```text
-AST
- │
- ├───────────────┐
- │               │
- ▼               ▼
-Editor State    Yjs
- │               │
- ▼               ▼
-Targeted       CRDT
-Updates        Sync
- │               │
- └───────┬───────┘
-         ▼
-   Persisted AST
-         │
-         ▼
-   AST Transformer
-         │
-         ▼
-   ExportDocument
-         │
-         ▼
-     PDFKit
-         │
-         ▼
-   Downloadable PDF
+              SyncDoc Editor
+                    │
+        ┌───────────┴───────────┐
+        ▼                       ▼
+   Document AST           Collaboration
+        │                       │
+        ▼                ┌──────┴──────┐
+   Sanitization          ▼             ▼
+        │             Presence      Block Lock
+        ▼                │             │
+   Safe Rendering        ▼             ▼
+                      Cursor       Editing State
+                        │
+                        ▼
+                    Selection
+                        │
+                        ▼
+                  Multi-client
+                   Synchronization
 ```
 
-The editor now supports both **real-time structural collaboration** and **PDF export from synchronized document state**.
+The project now supports:
+
+* Secure AST content handling
+* XSS protection
+* Real-time structural collaboration
+* Block-level editing protection
+* Collaborative cursor synchronization
+* Collaborative selection synchronization
+* Presence lifecycle management
+* Stale presence cleanup
+* Multi-client collaboration validation
+* PDF export from synchronized document state
 
 ---
 
@@ -1124,11 +1621,14 @@ Week 2 — Yjs + CRDT Collaboration
 
 Week 3 — Transformation + PDF Export
 ████████████████████ 100%
+
+Week 4 — Security + Collaboration
+████████████████████ 100%
 ```
 
-**Overall Project Status: 🚀 Weeks 1–3 Complete**
+**Overall Project Status: 🚀 Weeks 1–4 Complete**
 
-**Current milestone:** SyncDoc now provides a collaborative AST-based editor with Yjs/CRDT synchronization, block-level editing state, targeted AST updates, and functional PDF export.
+**Current milestone:** SyncDoc now provides a secure, collaborative AST-based document engine with Yjs/CRDT synchronization, block-level editing locks, presence tracking, collaborative cursor and selection state, targeted AST updates, stale-state cleanup, and functional PDF export.
 
 ---
 
@@ -1174,6 +1674,8 @@ React
 +
 TypeScript
 +
+DOMPurify
++
 PDF Export
 ```
 
@@ -1184,6 +1686,8 @@ This creates a foundation for reliable multi-user document editing while maintai
 ```text
 Document Structure
         ↓
+Security Layer
+        ↓
 Collaboration State
         ↓
 Editor State
@@ -1193,4 +1697,4 @@ Transformation
 Export
 ```
 
-**SyncDoc — Structural Collaboration + Transformation + Export.**
+**SyncDoc — Structural Collaboration + Security + Transformation + Export.**
