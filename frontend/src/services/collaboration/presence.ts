@@ -5,11 +5,17 @@ export interface PresenceCursor {
     offset: number;
 }
 
+export interface PresenceSelection {
+    start: PresenceCursor;
+    end: PresenceCursor;
+}
+
 export interface PresenceUser {
     userId: string;
     userName: string;
     timestamp: number;
     cursor: PresenceCursor | null;
+    selection: PresenceSelection | null;
 }
 
 const PRESENCE_TIMEOUT = 5000;
@@ -35,6 +41,7 @@ export function addPresenceUser(
         userName,
         timestamp: Date.now(),
         cursor: null,
+        selection: null,
     });
 }
 
@@ -63,6 +70,10 @@ export function updatePresenceUser(
         ...existing,
         userName,
         timestamp: Date.now(),
+        cursor:
+            existing.cursor ?? null,
+        selection:
+            existing.selection ?? null,
     });
 }
 
@@ -95,6 +106,64 @@ export function updatePresenceCursor(
             blockId,
             offset: safeOffset,
         },
+    });
+}
+
+export function updatePresenceSelection(
+    yDoc: Y.Doc,
+    userId: string,
+    blockId: string,
+    startOffset: number,
+    endOffset: number,
+): void {
+    const presence =
+        getPresence(yDoc);
+
+    const existing =
+        presence.get(userId);
+
+    if (!existing) {
+        return;
+    }
+
+    presence.set(userId, {
+        ...existing,
+        timestamp: Date.now(),
+        cursor: {
+            blockId,
+            offset: endOffset,
+        },
+        selection: {
+            start: {
+                blockId,
+                offset: startOffset,
+            },
+            end: {
+                blockId,
+                offset: endOffset,
+            },
+        },
+    });
+}
+
+export function clearPresenceSelection(
+    yDoc: Y.Doc,
+    userId: string,
+): void {
+    const presence =
+        getPresence(yDoc);
+
+    const existing =
+        presence.get(userId);
+
+    if (!existing) {
+        return;
+    }
+
+    presence.set(userId, {
+        ...existing,
+        timestamp: Date.now(),
+        selection: null,
     });
 }
 

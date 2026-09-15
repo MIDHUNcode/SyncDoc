@@ -14,6 +14,8 @@ import {
 import {
     updatePresenceCursor,
     clearPresenceCursor,
+    updatePresenceSelection,
+    clearPresenceSelection,
 } from "../../services/collaboration/presence";
 
 interface EditableBlockProps {
@@ -79,7 +81,7 @@ function EditableBlock({
             if (
                 lock &&
                 Date.now() >=
-                lock.expiresAt
+                    lock.expiresAt
             ) {
                 cleanupExpiredLocks(
                     yDoc,
@@ -96,6 +98,17 @@ function EditableBlock({
                     lock.userId === userId
                 ) {
                     setIsEditing(false);
+
+                    clearPresenceCursor(
+                        yDoc,
+                        userId,
+                    );
+
+                    clearPresenceSelection(
+                        yDoc,
+                        userId,
+                    );
+
                     onEditingChange?.(
                         false,
                     );
@@ -157,21 +170,58 @@ function EditableBlock({
         onLockChange,
     ]);
 
-    const publishCursorPosition = (
+    /*
+     * Publish the current cursor
+     * position to Yjs presence.
+     */
+
+    /*
+     * Publish the current text
+     * selection to Yjs presence.
+     */
+    const publishSelection = (
         element: HTMLTextAreaElement,
     ) => {
         if (!yDoc) {
             return;
         }
 
-        const offset =
+        const start =
             element.selectionStart ?? 0;
 
-        updatePresenceCursor(
+        const end =
+            element.selectionEnd ?? start;
+
+        /*
+         * No selected text.
+         * Keep the cursor and clear
+         * the selection state.
+         */
+        if (start === end) {
+            clearPresenceSelection(
+                yDoc,
+                userId,
+            );
+
+            updatePresenceCursor(
+                yDoc,
+                userId,
+                nodeId,
+                start,
+            );
+
+            return;
+        }
+
+        /*
+         * Text is selected.
+         */
+        updatePresenceSelection(
             yDoc,
             userId,
             nodeId,
-            offset,
+            start,
+            end,
         );
     };
 
@@ -198,13 +248,18 @@ function EditableBlock({
                 userName,
             );
 
+        /*
+         * Only enter editing mode
+         * if the lock was successfully
+         * acquired.
+         */
         if (acquired) {
             setIsEditing(true);
 
             onEditingChange?.(true);
             onLockChange?.(false);
 
-            publishCursorPosition(
+            publishSelection(
                 event.currentTarget,
             );
         }
@@ -241,6 +296,16 @@ function EditableBlock({
                 if (!refreshed) {
                     setIsEditing(false);
 
+                    clearPresenceCursor(
+                        yDoc,
+                        userId,
+                    );
+
+                    clearPresenceSelection(
+                        yDoc,
+                        userId,
+                    );
+
                     onEditingChange?.(
                         false,
                     );
@@ -266,7 +331,8 @@ function EditableBlock({
     ]);
 
     /*
-     * Release the lock when the
+     * Release the lock and clear
+     * cursor/selection when the
      * user leaves the textarea.
      */
     const handleBlur = () => {
@@ -285,6 +351,11 @@ function EditableBlock({
             userId,
         );
 
+        clearPresenceSelection(
+            yDoc,
+            userId,
+        );
+
         setIsEditing(false);
 
         onEditingChange?.(false);
@@ -292,8 +363,9 @@ function EditableBlock({
     };
 
     /*
-     * Release the lock if the block
-     * is removed/unmounted.
+     * Release the lock and clear
+     * cursor/selection if the block
+     * is removed or unmounted.
      */
     useEffect(() => {
         return () => {
@@ -308,6 +380,11 @@ function EditableBlock({
             );
 
             clearPresenceCursor(
+                yDoc,
+                userId,
+            );
+
+            clearPresenceSelection(
                 yDoc,
                 userId,
             );
@@ -387,7 +464,7 @@ function EditableBlock({
                         !isLockedByOtherUser &&
                         isEditing
                     ) {
-                        publishCursorPosition(
+                        publishSelection(
                             event.currentTarget,
                         );
                     }
@@ -401,7 +478,7 @@ function EditableBlock({
                             event.target.value,
                         );
 
-                        publishCursorPosition(
+                        publishSelection(
                             event.currentTarget,
                         );
                     }
