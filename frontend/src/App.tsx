@@ -42,7 +42,6 @@ function App() {
         useState(0);
 
     // ==========================================
-    // STEP 1 + STEP 2
     // AUTOSAVE + SAVE STATUS
     // ==========================================
     useEffect(() => {
@@ -150,14 +149,12 @@ function App() {
             updatedDocument
         );
 
-        // Remove old error after user edits
         if (error) {
             setError("");
         }
     };
 
     // ==========================================
-    // STEP 3
     // CREATE DOCUMENT
     // ==========================================
     const handleCreateDocument = async () => {
@@ -202,7 +199,6 @@ function App() {
     };
 
     // ==========================================
-    // STEP 4
     // DELETE DOCUMENT
     // ==========================================
     const handleDeleteDocument = async (
@@ -261,34 +257,25 @@ function App() {
         switch (saveStatus) {
             case "saving":
                 return (
-                    <span
-                        style={{
-                            color: "#b45309",
-                        }}
-                    >
-                        Saving...
+                    <span className="save-status saving">
+                        <span className="save-status-dot" />
+                        Saving changes...
                     </span>
                 );
 
             case "saved":
                 return (
-                    <span
-                        style={{
-                            color: "#15803d",
-                        }}
-                    >
-                        Saved ✓
+                    <span className="save-status saved">
+                        <span className="save-status-dot" />
+                        Changes saved
                     </span>
                 );
 
             case "error":
                 return (
-                    <span
-                        style={{
-                            color: "#dc2626",
-                        }}
-                    >
-                        Save failed ✕
+                    <span className="save-status error">
+                        <span className="save-status-dot" />
+                        Save failed
                     </span>
                 );
 
@@ -304,23 +291,7 @@ function App() {
         if (!error) return null;
 
         return (
-            <div
-                style={{
-                    marginTop: "20px",
-                    padding: "12px 16px",
-                    border:
-                        "1px solid #fca5a5",
-                    borderRadius: "8px",
-                    backgroundColor:
-                        "#fef2f2",
-                    color: "#b91c1c",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent:
-                        "space-between",
-                    gap: "15px",
-                }}
-            >
+            <div className="app-error">
                 <span>
                     ❌ {error}
                 </span>
@@ -329,13 +300,6 @@ function App() {
                     onClick={() =>
                         setError("")
                     }
-                    style={{
-                        border: "none",
-                        background:
-                            "transparent",
-                        cursor: "pointer",
-                        fontSize: "18px",
-                    }}
                     aria-label="Dismiss error"
                 >
                     ×
@@ -345,104 +309,301 @@ function App() {
     };
 
     return (
-        <div
-            style={{
-                padding: "30px",
-            }}
-        >
-            <h1>SyncDoc</h1>
-
-            <p>
-                Collaborative Document Engine
-                with AST
-            </p>
+        <div className="syncdoc-app">
 
             {/* ==================================
-                DOCUMENT BROWSER
+                SIDEBAR
             ================================== */}
 
-            <DocumentBrowser
-                onSelectDocument={
-                    handleSelectDocument
-                }
-                onCreateDocument={
-                    handleCreateDocument
-                }
-                onDeleteDocument={
-                    handleDeleteDocument
-                }
-                creating={creating}
-                refreshTrigger={
-                    refreshDocuments
-                }
-            />
+            <aside className="syncdoc-sidebar">
 
-            {/* ==================================
-                ERROR
-            ================================== */}
+                {/* LOGO */}
 
-            {renderError()}
+                <div className="syncdoc-logo">
+                    <div className="syncdoc-logo-icon">
+                        S
+                    </div>
 
-            {/* ==================================
-                LOADING DOCUMENT
-            ================================== */}
-
-            {loading && (
-                <p
-                    style={{
-                        marginTop: "20px",
-                    }}
-                >
-                    Loading document...
-                </p>
-            )}
-
-            {/* ==================================
-                DELETE STATUS
-            ================================== */}
-
-            {deleting && (
-                <p
-                    style={{
-                        marginTop: "20px",
-                    }}
-                >
-                    Deleting document...
-                </p>
-            )}
-
-            {/* ==================================
-                DOCUMENT VIEWER
-            ================================== */}
-
-            {selectedDocument &&
-                !loading && (
-                    <>
-                        {/* SAVE STATUS */}
-
-                        <div
-                            style={{
-                                marginTop:
-                                    "20px",
-                                marginBottom:
-                                    "10px",
-                                fontSize:
-                                    "14px",
-                            }}
-                        >
-                            {renderSaveStatus()}
+                    <div>
+                        <div className="syncdoc-logo-text">
+                            SyncDoc
                         </div>
 
-                        <DocumentViewer
-                            document={
-                                selectedDocument
+                        <div className="syncdoc-logo-subtitle">
+                            Collaborative workspace
+                        </div>
+                    </div>
+                </div>
+
+                {/* NAVIGATION */}
+
+                <div className="sidebar-section">
+
+                    <div className="sidebar-label">
+                        Workspace
+                    </div>
+
+                    <button className="sidebar-item active">
+                        <span className="sidebar-icon">
+                            ▦
+                        </span>
+
+                        <span>
+                            Documents
+                        </span>
+                    </button>
+
+                    <button className="sidebar-item">
+                        <span className="sidebar-icon">
+                            ◷
+                        </span>
+
+                        <span>
+                            Recent
+                        </span>
+                    </button>
+
+                    <button className="sidebar-item">
+                        <span className="sidebar-icon">
+                            ☆
+                        </span>
+
+                        <span>
+                            Favorites
+                        </span>
+                    </button>
+
+                </div>
+
+                <div className="sidebar-section">
+
+                    <div className="sidebar-label">
+                        Workspace
+                    </div>
+
+                    <button
+                        className="sidebar-item"
+                        onClick={
+                            handleCreateDocument
+                        }
+                        disabled={creating}
+                    >
+                        <span className="sidebar-icon">
+                            ＋
+                        </span>
+
+                        <span>
+                            {creating
+                                ? "Creating..."
+                                : "New Document"}
+                        </span>
+                    </button>
+
+                </div>
+
+                {/* BOTTOM */}
+
+                <div className="sidebar-bottom">
+
+                    <button className="sidebar-item">
+                        <span className="sidebar-icon">
+                            ⚙
+                        </span>
+
+                        <span>
+                            Settings
+                        </span>
+                    </button>
+
+                    <div className="sidebar-user">
+
+                        <div className="sidebar-avatar">
+                            M
+                        </div>
+
+                        <div className="sidebar-user-info">
+                            <strong>
+                                User
+                            </strong>
+
+                            <span>
+                                Online
+                            </span>
+                        </div>
+
+                        <span className="online-dot" />
+
+                    </div>
+
+                </div>
+
+            </aside>
+
+            {/* ==================================
+                MAIN AREA
+            ================================== */}
+
+            <main className="syncdoc-main">
+
+                {/* TOPBAR */}
+
+                <header className="syncdoc-topbar">
+
+                    <div className="topbar-search">
+                        <span>
+                            ⌕
+                        </span>
+
+                        <input
+                            type="text"
+                            placeholder="Search documents..."
+                        />
+
+                        <kbd>
+                            Ctrl K
+                        </kbd>
+                    </div>
+
+                    <div className="topbar-actions">
+
+                        <div className="connection-status">
+                            <span className="connection-dot" />
+                            Connected
+                        </div>
+
+                        <div className="topbar-divider" />
+
+                        <button
+                            className="icon-button"
+                            title="Notifications"
+                        >
+                            ♢
+                        </button>
+
+                        <button className="profile-button">
+                            <span className="profile-avatar">
+                                M
+                            </span>
+
+                            <span>
+                                User
+                            </span>
+
+                            <span>
+                                ▾
+                            </span>
+                        </button>
+
+                    </div>
+
+                </header>
+
+                {/* CONTENT */}
+
+                <div className="syncdoc-content">
+
+                    {/* DOCUMENT BROWSER */}
+
+                    {!selectedDocument && (
+                        <DocumentBrowser
+                            onSelectDocument={
+                                handleSelectDocument
                             }
-                            onChange={
-                                handleDocumentChange
+                            onCreateDocument={
+                                handleCreateDocument
+                            }
+                            onDeleteDocument={
+                                handleDeleteDocument
+                            }
+                            creating={
+                                creating
+                            }
+                            refreshTrigger={
+                                refreshDocuments
                             }
                         />
-                    </>
-                )}
+                    )}
+
+                    {/* ERROR */}
+
+                    {renderError()}
+
+                    {/* LOADING */}
+
+                    {loading && (
+                        <div className="loading-state">
+                            <div className="loading-spinner" />
+                            Loading document...
+                        </div>
+                    )}
+
+                    {/* DELETE */}
+
+                    {deleting && (
+                        <div className="loading-state">
+                            Deleting document...
+                        </div>
+                    )}
+
+                    {/* DOCUMENT EDITOR */}
+
+                    {selectedDocument &&
+                        !loading && (
+                            <div className="editor-workspace">
+
+                                {/* EDITOR HEADER */}
+
+                                <div className="editor-header">
+
+                                    <button
+                                        className="back-button"
+                                        onClick={() =>
+                                            setSelectedDocument(
+                                                null
+                                            )
+                                        }
+                                    >
+                                        ←
+                                        <span>
+                                            Documents
+                                        </span>
+                                    </button>
+
+                                    <div className="editor-header-right">
+
+                                        {renderSaveStatus()}
+
+                                        <div className="editor-connection">
+                                            <span className="connection-dot" />
+                                            Live
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                                {/* EDITOR */}
+
+                                <div className="editor-container">
+
+                                    <DocumentViewer
+                                        document={
+                                            selectedDocument
+                                        }
+                                        onChange={
+                                            handleDocumentChange
+                                        }
+                                    />
+
+                                </div>
+
+                            </div>
+                        )}
+
+                </div>
+
+            </main>
+
         </div>
     );
 }
