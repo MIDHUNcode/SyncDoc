@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 
 import DocumentBrowser from "./components/documents/DocumentBrowser";
 import DocumentViewer from "./components/documents/DocumentViewer";
@@ -18,6 +22,13 @@ type SaveStatus =
     | "saving"
     | "saved"
     | "error";
+
+type Navigation =
+    | "dashboard"
+    | "documents"
+    | "recent"
+    | "favorites"
+    | "settings";
 
 function App() {
     const [selectedDocument, setSelectedDocument] =
@@ -41,9 +52,55 @@ function App() {
     const [refreshDocuments, setRefreshDocuments] =
         useState(0);
 
+    const [activeNavigation, setActiveNavigation] =
+        useState<Navigation>("dashboard");
+
+    const [sidebarCollapsed, setSidebarCollapsed] =
+        useState(false);
+
+    const [searchQuery, setSearchQuery] =
+        useState("");
+
+    const [settingsOpen, setSettingsOpen] =
+        useState(false);
+
+    const searchInputRef =
+        useRef<HTMLInputElement>(null);
+
     // ==========================================
-    // AUTOSAVE + SAVE STATUS
+    // KEYBOARD SEARCH SHORTCUT
     // ==========================================
+
+    useEffect(() => {
+        const handleKeyboardShortcut = (
+            event: KeyboardEvent
+        ) => {
+            if (
+                (event.ctrlKey || event.metaKey) &&
+                event.key.toLowerCase() === "k"
+            ) {
+                event.preventDefault();
+
+                searchInputRef.current?.focus();
+            }
+        };
+
+        window.addEventListener(
+            "keydown",
+            handleKeyboardShortcut
+        );
+
+        return () =>
+            window.removeEventListener(
+                "keydown",
+                handleKeyboardShortcut
+            );
+    }, []);
+
+    // ==========================================
+    // AUTOSAVE
+    // ==========================================
+
     useEffect(() => {
         if (!selectedDocument) return;
 
@@ -69,79 +126,85 @@ function App() {
 
         setSaveStatus("saving");
 
-        const timer = setTimeout(async () => {
-            try {
-                await updateDocument(
-                    selectedDocument._id,
-                    {
-                        title:
-                            selectedDocument.title,
-                        nodes:
-                            selectedDocument.nodes,
-                    }
-                );
+        const timer = setTimeout(
+            async () => {
+                try {
+                    await updateDocument(
+                        selectedDocument._id,
+                        {
+                            title:
+                                selectedDocument.title,
+                            nodes:
+                                selectedDocument.nodes,
+                        }
+                    );
 
-                console.log(
-                    "✅ Document autosaved"
-                );
+                    console.log(
+                        "✅ Document autosaved"
+                    );
 
-                setSaveStatus("saved");
-            } catch (error) {
-                console.error(
-                    "❌ Autosave failed:",
-                    error
-                );
+                    setSaveStatus("saved");
+                } catch (error) {
+                    console.error(
+                        "❌ Autosave failed:",
+                        error
+                    );
 
-                setSaveStatus("error");
+                    setSaveStatus("error");
 
-                setError(
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to save document"
-                );
-            }
-        }, 800);
+                    setError(
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to save document"
+                    );
+                }
+            },
+            800
+        );
 
         return () =>
             clearTimeout(timer);
     }, [selectedDocument]);
 
     // ==========================================
-    // LOAD DOCUMENT
+    // SELECT DOCUMENT
     // ==========================================
-    const handleSelectDocument = async (
-        id: string
-    ) => {
-        try {
-            setLoading(true);
-            setError("");
-            setSaveStatus("idle");
 
-            const document =
-                await getDocumentById(id);
+    const handleSelectDocument =
+        async (id: string) => {
+            try {
+                setLoading(true);
+                setError("");
+                setSaveStatus("idle");
 
-            setSelectedDocument(document);
-        } catch (error) {
-            console.error(
-                "❌ Error loading document:",
-                error
-            );
+                const document =
+                    await getDocumentById(id);
 
-            setError(
-                error instanceof Error
-                    ? error.message
-                    : "Unable to load the document. Please try again."
-            );
+                setSelectedDocument(
+                    document
+                );
+            } catch (error) {
+                console.error(
+                    "❌ Error loading document:",
+                    error
+                );
 
-            setSelectedDocument(null);
-        } finally {
-            setLoading(false);
-        }
-    };
+                setError(
+                    error instanceof Error
+                        ? error.message
+                        : "Unable to load the document."
+                );
+
+                setSelectedDocument(null);
+            } finally {
+                setLoading(false);
+            }
+        };
 
     // ==========================================
     // DOCUMENT CHANGE
     // ==========================================
+
     const handleDocumentChange = (
         updatedDocument: DocumentData
     ) => {
@@ -157,109 +220,130 @@ function App() {
     // ==========================================
     // CREATE DOCUMENT
     // ==========================================
-    const handleCreateDocument = async () => {
-        try {
-            setCreating(true);
-            setError("");
-            setSaveStatus("idle");
 
-            const newDocument =
-                await createDocument(
-                    "Untitled Document",
-                    []
+    const handleCreateDocument =
+        async () => {
+            try {
+                setCreating(true);
+                setError("");
+                setSaveStatus("idle");
+
+                const newDocument =
+                    await createDocument(
+                        "Untitled Document",
+                        []
+                    );
+
+                console.log(
+                    "✅ Document created:",
+                    newDocument
                 );
 
-            console.log(
-                "✅ Document created:",
-                newDocument
-            );
+                setSelectedDocument(
+                    newDocument
+                );
 
-            setSelectedDocument(
-                newDocument
-            );
+                setRefreshDocuments(
+                    (current) =>
+                        current + 1
+                );
 
-            setRefreshDocuments(
-                (current) =>
-                    current + 1
-            );
-        } catch (error) {
-            console.error(
-                "❌ Error creating document:",
-                error
-            );
+                setActiveNavigation(
+                    "documents"
+                );
+            } catch (error) {
+                console.error(
+                    "❌ Error creating document:",
+                    error
+                );
 
-            setError(
-                error instanceof Error
-                    ? error.message
-                    : "Unable to create the document. Please try again."
-            );
-        } finally {
-            setCreating(false);
-        }
-    };
+                setError(
+                    error instanceof Error
+                        ? error.message
+                        : "Unable to create the document."
+                );
+            } finally {
+                setCreating(false);
+            }
+        };
 
     // ==========================================
     // DELETE DOCUMENT
     // ==========================================
-    const handleDeleteDocument = async (
-        id: string
-    ) => {
-        const confirmed =
-            window.confirm(
-                "Are you sure you want to delete this document?"
-            );
 
-        if (!confirmed) {
-            return;
-        }
+    const handleDeleteDocument =
+        async (id: string) => {
+            try {
+                setDeleting(true);
+                setError("");
 
-        try {
-            setDeleting(true);
-            setError("");
+                await deleteDocument(id);
 
-            await deleteDocument(id);
+                console.log(
+                    "🗑️ Document deleted successfully"
+                );
 
-            console.log(
-                "🗑️ Document deleted successfully"
-            );
+                if (
+                    selectedDocument?._id === id
+                ) {
+                    setSelectedDocument(null);
+                    setSaveStatus("idle");
+                }
 
-            if (
-                selectedDocument?._id === id
-            ) {
-                setSelectedDocument(null);
-                setSaveStatus("idle");
+                setRefreshDocuments(
+                    (current) =>
+                        current + 1
+                );
+            } catch (error) {
+                console.error(
+                    "❌ Error deleting document:",
+                    error
+                );
+
+                setError(
+                    error instanceof Error
+                        ? error.message
+                        : "Unable to delete the document."
+                );
+            } finally {
+                setDeleting(false);
             }
+        };
 
-            setRefreshDocuments(
-                (current) =>
-                    current + 1
-            );
-        } catch (error) {
-            console.error(
-                "❌ Error deleting document:",
-                error
-            );
+    // ==========================================
+    // NAVIGATION
+    // ==========================================
 
-            setError(
-                error instanceof Error
-                    ? error.message
-                    : "Unable to delete the document. Please try again."
-            );
-        } finally {
-            setDeleting(false);
+    const handleNavigation = (
+        navigation: Navigation
+    ) => {
+        setActiveNavigation(
+            navigation
+        );
+
+        setSettingsOpen(
+            navigation === "settings"
+        );
+
+        if (
+            navigation !== "settings" &&
+            selectedDocument
+        ) {
+            setSelectedDocument(null);
         }
     };
 
     // ==========================================
     // SAVE STATUS
     // ==========================================
+
     const renderSaveStatus = () => {
         switch (saveStatus) {
             case "saving":
                 return (
                     <span className="save-status saving">
                         <span className="save-status-dot" />
-                        Saving changes...
+                        Saving
                     </span>
                 );
 
@@ -267,7 +351,7 @@ function App() {
                 return (
                     <span className="save-status saved">
                         <span className="save-status-dot" />
-                        Changes saved
+                        Saved
                     </span>
                 );
 
@@ -285,8 +369,9 @@ function App() {
     };
 
     // ==========================================
-    // ERROR UI
+    // ERROR
     // ==========================================
+
     const renderError = () => {
         if (!error) return null;
 
@@ -300,7 +385,6 @@ function App() {
                     onClick={() =>
                         setError("")
                     }
-                    aria-label="Dismiss error"
                 >
                     ×
                 </button>
@@ -308,8 +392,34 @@ function App() {
         );
     };
 
+    // ==========================================
+    // DOCUMENT FILTER
+    // ==========================================
+
+    const getDocumentView =
+        () => {
+            switch (
+                activeNavigation
+            ) {
+                case "recent":
+                    return "recent";
+
+                case "favorites":
+                    return "favorites";
+
+                default:
+                    return "all";
+            }
+        };
+
     return (
-        <div className="syncdoc-app">
+        <div
+            className={`syncdoc-app ${
+                sidebarCollapsed
+                    ? "sidebar-collapsed"
+                    : ""
+            }`}
+        >
 
             {/* ==================================
                 SIDEBAR
@@ -317,151 +427,282 @@ function App() {
 
             <aside className="syncdoc-sidebar">
 
-                {/* LOGO */}
+                {/* BRAND */}
 
-                <div className="syncdoc-logo">
-                    <div className="syncdoc-logo-icon">
-                        S
-                    </div>
+                <div className="sidebar-brand">
 
-                    <div>
-                        <div className="syncdoc-logo-text">
-                            SyncDoc
+                    <div className="syncdoc-logo">
+
+                        <div className="syncdoc-logo-icon">
+                            S
                         </div>
 
-                        <div className="syncdoc-logo-subtitle">
-                            Collaborative workspace
-                        </div>
+                        {!sidebarCollapsed && (
+                            <div>
+                                <div className="syncdoc-logo-text">
+                                    SyncDoc
+                                </div>
+
+                                <div className="syncdoc-logo-subtitle">
+                                    SECURE WORKSPACE
+                                </div>
+                            </div>
+                        )}
+
                     </div>
+
+                    <button
+                        className="sidebar-collapse"
+                        onClick={() =>
+                            setSidebarCollapsed(
+                                (value) =>
+                                    !value
+                            )
+                        }
+                        title={
+                            sidebarCollapsed
+                                ? "Expand sidebar"
+                                : "Collapse sidebar"
+                        }
+                    >
+                        {sidebarCollapsed
+                            ? "›"
+                            : "‹"}
+                    </button>
+
                 </div>
 
                 {/* NAVIGATION */}
 
-                <div className="sidebar-section">
-
-                    <div className="sidebar-label">
-                        Workspace
-                    </div>
-
-                    <button className="sidebar-item active">
-                        <span className="sidebar-icon">
-                            ▦
-                        </span>
-
-                        <span>
-                            Documents
-                        </span>
-                    </button>
-
-                    <button className="sidebar-item">
-                        <span className="sidebar-icon">
-                            ◷
-                        </span>
-
-                        <span>
-                            Recent
-                        </span>
-                    </button>
-
-                    <button className="sidebar-item">
-                        <span className="sidebar-icon">
-                            ☆
-                        </span>
-
-                        <span>
-                            Favorites
-                        </span>
-                    </button>
-
-                </div>
-
-                <div className="sidebar-section">
+                <nav className="sidebar-navigation">
 
                     <div className="sidebar-label">
                         Workspace
                     </div>
 
                     <button
-                        className="sidebar-item"
+                        className={`sidebar-item ${
+                            activeNavigation ===
+                            "dashboard"
+                                ? "active"
+                                : ""
+                        }`}
+                        onClick={() =>
+                            handleNavigation(
+                                "dashboard"
+                            )
+                        }
+                        title="Dashboard"
+                    >
+                        <span className="sidebar-icon">
+                            ⌂
+                        </span>
+
+                        {!sidebarCollapsed && (
+                            <span>
+                                Dashboard
+                            </span>
+                        )}
+                    </button>
+
+                    <button
+                        className={`sidebar-item ${
+                            activeNavigation ===
+                            "documents"
+                                ? "active"
+                                : ""
+                        }`}
+                        onClick={() =>
+                            handleNavigation(
+                                "documents"
+                            )
+                        }
+                        title="Documents"
+                    >
+                        <span className="sidebar-icon">
+                            ▣
+                        </span>
+
+                        {!sidebarCollapsed && (
+                            <span>
+                                Documents
+                            </span>
+                        )}
+                    </button>
+
+                    <button
+                        className={`sidebar-item ${
+                            activeNavigation ===
+                            "recent"
+                                ? "active"
+                                : ""
+                        }`}
+                        onClick={() =>
+                            handleNavigation(
+                                "recent"
+                            )
+                        }
+                        title="Recent"
+                    >
+                        <span className="sidebar-icon">
+                            ◷
+                        </span>
+
+                        {!sidebarCollapsed && (
+                            <span>
+                                Recent
+                            </span>
+                        )}
+                    </button>
+
+                    <button
+                        className={`sidebar-item ${
+                            activeNavigation ===
+                            "favorites"
+                                ? "active"
+                                : ""
+                        }`}
+                        onClick={() =>
+                            handleNavigation(
+                                "favorites"
+                            )
+                        }
+                        title="Favorites"
+                    >
+                        <span className="sidebar-icon">
+                            ☆
+                        </span>
+
+                        {!sidebarCollapsed && (
+                            <span>
+                                Favorites
+                            </span>
+                        )}
+                    </button>
+
+                    <div className="sidebar-divider" />
+
+                    <div className="sidebar-label">
+                        Create
+                    </div>
+
+                    <button
+                        className="sidebar-create-button"
                         onClick={
                             handleCreateDocument
                         }
                         disabled={creating}
+                        title="Create new document"
                     >
-                        <span className="sidebar-icon">
+                        <span>
                             ＋
                         </span>
 
-                        <span>
-                            {creating
-                                ? "Creating..."
-                                : "New Document"}
-                        </span>
+                        {!sidebarCollapsed && (
+                            <span>
+                                {creating
+                                    ? "Creating..."
+                                    : "New Document"}
+                            </span>
+                        )}
                     </button>
 
-                </div>
+                </nav>
 
-                {/* BOTTOM */}
+                {/* SIDEBAR FOOTER */}
 
-                <div className="sidebar-bottom">
+                <div className="sidebar-footer">
 
-                    <button className="sidebar-item">
+                    <button
+                        className={`sidebar-item ${
+                            activeNavigation ===
+                            "settings"
+                                ? "active"
+                                : ""
+                        }`}
+                        onClick={() =>
+                            handleNavigation(
+                                "settings"
+                            )
+                        }
+                        title="Settings"
+                    >
                         <span className="sidebar-icon">
                             ⚙
                         </span>
 
-                        <span>
-                            Settings
-                        </span>
+                        {!sidebarCollapsed && (
+                            <span>
+                                Settings
+                            </span>
+                        )}
                     </button>
 
-                    <div className="sidebar-user">
+                    {!sidebarCollapsed && (
+                        <div className="sidebar-user">
 
-                        <div className="sidebar-avatar">
-                            M
+                            <div className="sidebar-avatar">
+                                M
+                            </div>
+
+                            <div className="sidebar-user-details">
+                                <strong>
+                                    User
+                                </strong>
+
+                                <span>
+                                    Online
+                                </span>
+                            </div>
+
+                            <span className="online-dot" />
+
                         </div>
-
-                        <div className="sidebar-user-info">
-                            <strong>
-                                User
-                            </strong>
-
-                            <span>
-                                Online
-                            </span>
-                        </div>
-
-                        <span className="online-dot" />
-
-                    </div>
+                    )}
 
                 </div>
 
             </aside>
 
             {/* ==================================
-                MAIN AREA
+                MAIN
             ================================== */}
 
             <main className="syncdoc-main">
 
-                {/* TOPBAR */}
+                {/* TOP BAR */}
 
                 <header className="syncdoc-topbar">
 
                     <div className="topbar-search">
-                        <span>
+
+                        <span className="search-icon">
                             ⌕
                         </span>
 
                         <input
+                            ref={
+                                searchInputRef
+                            }
                             type="text"
                             placeholder="Search documents..."
+                            value={
+                                searchQuery
+                            }
+                            onChange={(
+                                event
+                            ) =>
+                                setSearchQuery(
+                                    event.target
+                                        .value
+                                )
+                            }
                         />
 
                         <kbd>
                             Ctrl K
                         </kbd>
+
                     </div>
 
                     <div className="topbar-actions">
@@ -471,60 +712,151 @@ function App() {
                             Connected
                         </div>
 
-                        <div className="topbar-divider" />
-
                         <button
-                            className="icon-button"
+                            className="topbar-icon-button"
                             title="Notifications"
                         >
                             ♢
                         </button>
 
-                        <button className="profile-button">
-                            <span className="profile-avatar">
+                        <div className="topbar-profile">
+
+                            <div className="profile-avatar">
                                 M
-                            </span>
+                            </div>
 
-                            <span>
-                                User
-                            </span>
+                            <div className="profile-details">
+                                <strong>
+                                    User
+                                </strong>
 
-                            <span>
+                                <span>
+                                    Workspace
+                                </span>
+                            </div>
+
+                            <span className="profile-arrow">
                                 ▾
                             </span>
-                        </button>
+
+                        </div>
 
                     </div>
 
                 </header>
 
-                {/* CONTENT */}
+                {/* ==================================
+                    PAGE CONTENT
+                ================================== */}
 
                 <div className="syncdoc-content">
 
-                    {/* DOCUMENT BROWSER */}
+                    {/* SETTINGS */}
 
-                    {!selectedDocument && (
-                        <DocumentBrowser
-                            onSelectDocument={
-                                handleSelectDocument
-                            }
-                            onCreateDocument={
-                                handleCreateDocument
-                            }
-                            onDeleteDocument={
-                                handleDeleteDocument
-                            }
-                            creating={
-                                creating
-                            }
-                            refreshTrigger={
-                                refreshDocuments
-                            }
-                        />
+                    {settingsOpen && (
+                        <div className="settings-page">
+
+                            <div className="page-heading">
+                                <div>
+                                    <div className="page-heading-icon">
+                                        ⚙
+                                    </div>
+
+                                    <div>
+                                        <h1>
+                                            Settings
+                                        </h1>
+
+                                        <p>
+                                            Manage your SyncDoc workspace.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="settings-card">
+
+                                <div className="settings-row">
+                                    <div>
+                                        <strong>
+                                            Workspace
+                                        </strong>
+
+                                        <span>
+                                            SyncDoc Collaborative Workspace
+                                        </span>
+                                    </div>
+
+                                    <span className="settings-badge">
+                                        Active
+                                    </span>
+                                </div>
+
+                                <div className="settings-row">
+                                    <div>
+                                        <strong>
+                                            Collaboration
+                                        </strong>
+
+                                        <span>
+                                            Real-time Yjs synchronization
+                                        </span>
+                                    </div>
+
+                                    <span className="settings-badge green">
+                                        Connected
+                                    </span>
+                                </div>
+
+                                <div className="settings-row">
+                                    <div>
+                                        <strong>
+                                            Autosave
+                                        </strong>
+
+                                        <span>
+                                            Documents are saved automatically.
+                                        </span>
+                                    </div>
+
+                                    <span className="settings-badge green">
+                                        Enabled
+                                    </span>
+                                </div>
+
+                            </div>
+
+                        </div>
                     )}
 
-                    {/* ERROR */}
+                    {/* DOCUMENT BROWSER */}
+
+                    {!settingsOpen &&
+                        !selectedDocument && (
+                            <DocumentBrowser
+                                onSelectDocument={
+                                    handleSelectDocument
+                                }
+                                onCreateDocument={
+                                    handleCreateDocument
+                                }
+                                onDeleteDocument={
+                                    handleDeleteDocument
+                                }
+                                creating={
+                                    creating
+                                }
+                                refreshTrigger={
+                                    refreshDocuments
+                                }
+                                viewMode={
+                                    getDocumentView()
+                                }
+                                searchQuery={
+                                    searchQuery
+                                }
+                            />
+                        )}
 
                     {renderError()}
 
@@ -537,7 +869,7 @@ function App() {
                         </div>
                     )}
 
-                    {/* DELETE */}
+                    {/* DELETING */}
 
                     {deleting && (
                         <div className="loading-state">
@@ -545,13 +877,11 @@ function App() {
                         </div>
                     )}
 
-                    {/* DOCUMENT EDITOR */}
+                    {/* EDITOR */}
 
                     {selectedDocument &&
                         !loading && (
                             <div className="editor-workspace">
-
-                                {/* EDITOR HEADER */}
 
                                 <div className="editor-header">
 
@@ -581,8 +911,6 @@ function App() {
                                     </div>
 
                                 </div>
-
-                                {/* EDITOR */}
 
                                 <div className="editor-container">
 
